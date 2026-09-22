@@ -1,0 +1,7 @@
+openpyxl>=3.1
+playwright>=1.45
+pytest>=8
+# only needed to regenerate src/fontdata.js (see scripts/make_font_subset.py)
+fonttools>=4.50
+brotli>=1.1
+font-roboto>=0.0.1

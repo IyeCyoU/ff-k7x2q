@@ -1,0 +1,17 @@
+# build output and tooling
+dist/
+vendor/
+node_modules/
+__pycache__/
+.pytest_cache/
+.venv/
+
+# Never commit real financial data
+*.xlsx
+*.xlsm
+*.xls
+*.csv
+family-fund-backup-*.json
+!sample-data/sample-workbook.xlsx
+
+.DS_Store
