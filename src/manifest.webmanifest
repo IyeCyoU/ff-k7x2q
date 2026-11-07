@@ -1,0 +1,15 @@
+{
+  "name": "Family Fund",
+  "short_name": "Family Fund",
+  "description": "Family contributions, funds and the housing goal from your bank-statement workbook. Your data stays on this device.",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#14382c",
+  "theme_color": "#14382c",
+  "icons": [
+    {"src": "icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any"},
+    {"src": "icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any"},
+    {"src": "icons/icon-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable"}
+  ]
+}

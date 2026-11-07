@@ -1,0 +1,236 @@
+"""The published website: served over http exactly as GitHub Pages serves dist/.
+
+Offline use, updates, the security policy, amounts typed the way people type them, the phone layout,
+and keeping your place while editing."""
+import functools
+import http.server
+import pathlib
+import shutil
+import threading
+
+import pytest
+
+ROOT = pathlib.Path(__file__).resolve().parents[1]
+DIST = ROOT / "dist"
+SAMPLE = ROOT / "sample-data" / "sample-workbook.xlsx"
+
+
+class Quiet(http.server.SimpleHTTPRequestHandler):
+    extensions_map = {**http.server.SimpleHTTPRequestHandler.extensions_map, ".webmanifest": "application/manifest+json", ".js": "text/javascript"}
+
+    def log_message(self, *a):
+        pass
+
+    def end_headers(self):
+        self.send_header("Cache-Control", "no-cache")
+        super().end_headers()
+
+
+def serve(directory):
+    srv = http.server.ThreadingHTTPServer(("127.0.0.1", 0), functools.partial(Quiet, directory=str(directory)))
+    threading.Thread(target=srv.serve_forever, daemon=True).start()
+    return srv, f"http://127.0.0.1:{srv.server_address[1]}/"
+
+
+@pytest.fixture(scope="module")
+def site(built):
+    srv, url = serve(DIST)
+    yield url
+    srv.shutdown()
+
+
+def open_site(browser, url, width=1360, height=900):
+    ctx = browser.new_context(viewport={"width": width, "height": height})
+    pg = ctx.new_page()
+    pg.problems = []
+    pg.on("pageerror", lambda e: pg.problems.append(str(e)))
+    # Failed loads are checked by name (requestfailed); the console line for them names no file.
+    # Google Fonts are blocked on purpose: the app must work without them.
+    pg.on("console", lambda m: pg.problems.append(m.text) if m.type == "error" and "net::ERR_FAILED" not in m.text else None)
+    pg.on("requestfailed", lambda r: pg.problems.append("FAILED " + r.url[:90]) if "fonts.g" not in r.url else None)
+    pg.route("**/*", lambda r: r.abort() if "fonts.g" in r.request.url else r.continue_())
+    pg.goto(url)
+    return ctx, pg
+
+
+def load_sample(pg):
+    pg.set_input_files("#file", str(SAMPLE))
+    pg.wait_for_selector("#applyImp")
+    pg.click("#applyImp")
+    pg.wait_for_selector(".hero")
+
+
+def test_libraries_come_with_the_app_not_a_cdn(site, browser):
+    ctx, pg = open_site(browser, site)
+    outside = []
+    pg.on("request", lambda r: outside.append(r.url) if not r.url.startswith(site) and "fonts.g" not in r.url else None)
+    pg.reload()
+    load_sample(pg)
+    assert outside == []
+    assert pg.evaluate("typeof XLSX === 'object' && typeof jspdf === 'object'")
+    ctx.close()
+
+
+def test_security_policy_blocks_other_servers_and_app_trips_nothing(site, browser):
+    ctx, pg = open_site(browser, site)
+    pg.evaluate("window.__v = []; document.addEventListener('securitypolicyviolation', e => __v.push(e.violatedDirective))")
+    load_sample(pg)
+    for tab in pg.evaluate("TABS.map(t => t[0])"):
+        pg.evaluate("t => goto(t)", tab)
+    pg.click("[data-act=moreFilters]")
+    assert pg.evaluate("__v") == [], "the app itself must not trip the policy"
+    assert pg.problems == []
+    sent = pg.evaluate("fetch('https://example.com/x', {method: 'POST', body: 'data'}).then(() => 'sent', () => 'blocked')")
+    assert sent == "blocked"
+    ctx.close()
+
+
+def test_works_offline_and_offers_new_version(built, browser, tmp_path):
+    copy = tmp_path / "site"
+    shutil.copytree(DIST, copy)
+    srv, url = serve(copy)
+    try:
+        ctx, pg = open_site(browser, url)
+        pg.evaluate("navigator.serviceWorker.ready")
+        cached = pg.evaluate("caches.keys().then(k => caches.open(k[0])).then(c => c.keys()).then(r => r.length)")
+        assert cached >= 9
+        pg.reload()
+        ctx.set_offline(True)
+        pg.reload()
+        assert pg.title() == "Family Fund"
+        load_sample(pg)                       # the libraries work offline too
+        ctx.set_offline(False)
+        sw = copy / "sw.js"
+        sw.write_text(sw.read_text().replace("const CACHE = 'family-fund-", "const CACHE = 'family-fund-next-"))
+        pg.evaluate("navigator.serviceWorker.getRegistration().then(r => r.update())")
+        pg.wait_for_selector(".sw-update", timeout=10000)
+        with pg.expect_navigation():
+            pg.click(".sw-update button")
+        assert all(k.startswith("family-fund-next-") for k in pg.evaluate("caches.keys()"))
+        assert pg.problems == []
+        ctx.close()
+    finally:
+        srv.shutdown()
+
+
+def test_offline_single_file_needs_no_internet(browser):
+    off = DIST / "family-fund-offline.html"
+    if not off.exists():
+        import subprocess, sys
+        subprocess.run([sys.executable, str(ROOT / "build.py"), "--offline"], check=True)
+    ctx = browser.new_context()
+    pg = ctx.new_page()
+    pg.route("**/*", lambda r: r.continue_() if r.request.url.startswith("file:") else r.abort())
+    errors = []
+    pg.on("pageerror", lambda e: errors.append(str(e)))
+    pg.goto(off.as_uri())
+    load_sample(pg)
+    assert errors == []
+    ctx.close()
+
+
+@pytest.mark.parametrize("typed, want", [("10,000", 10000), ("1,00,000", 100000), ("₹ 12,500", 12500), ("15000", 15000)])
+def test_contribution_amount_typed_with_commas(site, browser, typed, want):
+    ctx, pg = open_site(browser, site)
+    load_sample(pg)
+    pg.evaluate("goto('setup')")
+    box = "input[data-plan][data-k=amount]"
+    pid = pg.get_attribute(box, "data-plan")
+    pg.click(box); pg.fill(box, ""); pg.keyboard.type(typed); pg.keyboard.press("Tab")
+    pg.wait_for_timeout(150)
+    assert pg.evaluate("id => S.cfg.plan.find(p => p.id === id).amount", pid) == want
+    ctx.close()
+
+
+def test_goal_target_and_cash_amount_typed_with_commas(site, browser):
+    ctx, pg = open_site(browser, site)
+    load_sample(pg)
+    pg.evaluate("goto('setup')")
+    pg.click("#g-t"); pg.fill("#g-t", ""); pg.keyboard.type("1,00,00,000"); pg.keyboard.press("Tab")
+    pg.wait_for_timeout(150)
+    assert pg.evaluate("S.cfg.goal.target") == 10000000
+    pg.evaluate("goto('cash')")
+    pg.click("[data-act=addCash]")
+    pg.fill("#cf-desc", "Vegetables") if pg.query_selector("#cf-desc") else None
+    pg.click("#cf-amt"); pg.keyboard.type("1,250.50"); pg.keyboard.press("Tab")
+    assert float(pg.input_value("#cf-amt")) == 1250.5
+    ctx.close()
+
+
+def test_cursor_stays_put_after_an_edit(site, browser):
+    ctx, pg = open_site(browser, site)
+    load_sample(pg)
+    pg.evaluate("goto('setup')")
+    pg.click("#st-tol"); pg.fill("#st-tol", ""); pg.keyboard.type("2"); pg.keyboard.press("Tab")
+    pg.wait_for_timeout(150)
+    assert pg.evaluate("document.activeElement !== document.body"), "cursor lost after editing"
+    assert pg.evaluate("S.cfg.tol") == 2
+    ctx.close()
+
+
+def test_phone_filters_popup_is_on_screen_and_on_top(site, browser):
+    ctx, pg = open_site(browser, site, 393, 852)
+    load_sample(pg)
+    pg.click("[data-act=moreFilters]")
+    pg.wait_for_timeout(150)
+    r = pg.evaluate("(() => { const r = document.querySelector('.popover').getBoundingClientRect(); return {l: r.left, r: r.right, b: r.bottom}; })()")
+    assert r["l"] >= 0 and r["r"] <= 393, r
+    assert pg.evaluate("document.documentElement.scrollWidth") <= 393
+    # every select in the pop-up is the topmost thing at its centre (not hidden behind a card)
+    hidden = pg.evaluate("""() => [...document.querySelectorAll('.popover select')].filter(s => {
+        const b = s.getBoundingClientRect(); const top = document.elementFromPoint(b.left + b.width / 2, b.top + b.height / 2);
+        return !(top === s || s.contains(top)); }).map(s => s.dataset.f)""")
+    assert hidden == []
+    ctx.close()
+
+
+def test_app_installs_on_phones(site, browser):
+    ctx, pg = open_site(browser, site)
+    m = pg.evaluate("fetch('manifest.webmanifest').then(r => r.json())")
+    assert m["display"] == "standalone" and len(m["icons"]) >= 3
+    for icon in [i["src"] for i in m["icons"]] + ["icons/apple-touch-icon.png"]:
+        assert (DIST / icon).exists(), icon
+    ctx.close()
+
+
+def test_backup_with_password_round_trip(site, browser, tmp_path):
+    ctx, pg = open_site(browser, site)
+    load_sample(pg)
+    before = pg.evaluate("[S.tx.length, R.famCum[R.N-1]]")
+    pg.evaluate("goto('setup')")
+    pg.click("[data-act=backup]")
+    pg.fill("#bk-pw", "short"); pg.fill("#bk-pw2", "short"); pg.click("#bk-ok")
+    assert "8 characters" in pg.text_content("#bk-msg")
+    pg.fill("#bk-pw", "family secret 9"); pg.fill("#bk-pw2", "family secret 9")
+    with pg.expect_download() as d:
+        pg.click("#bk-ok")
+    f = tmp_path / "backup.json"; d.value.save_as(f)
+    raw = f.read_text()
+    assert '"enc": true' in raw.replace('"enc":true', '"enc": true')
+    for name in pg.evaluate("S.cfg.brothers") + ["Bapa"]:
+        assert name not in raw, f"{name} readable in an encrypted backup"
+    # wipe, then restore with a wrong and the right password
+    pg.evaluate("localStorage.clear()"); pg.reload()
+    pg.set_input_files("#file", str(f))
+    pg.fill("#br-pw", "wrong password"); pg.click("#br-ok")
+    pg.locator("#br-msg", has_text="did not open").wait_for()   # unlocking is slow on purpose
+    assert "did not open" in pg.text_content("#br-msg")
+    pg.fill("#br-pw", "family secret 9"); pg.click("#br-ok")
+    pg.click("#confirmOk")
+    pg.wait_for_selector(".hero")
+    assert pg.evaluate("[S.tx.length, R.famCum[R.N-1]]") == before
+    ctx.close()
+
+
+def test_old_backup_without_password_still_restores(site, browser, tmp_path):
+    ctx, pg = open_site(browser, site)
+    load_sample(pg)
+    f = tmp_path / "plain.json"
+    f.write_text(pg.evaluate("JSON.stringify(S)"))
+    n = pg.evaluate("S.tx.length")
+    pg.evaluate("localStorage.clear()"); pg.reload()
+    pg.set_input_files("#file", str(f))
+    pg.click("#confirmOk")
+    pg.wait_for_selector(".hero")
+    assert pg.evaluate("S.tx.length") == n
+    ctx.close()
