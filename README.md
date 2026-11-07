@@ -36,7 +36,7 @@ All screenshots use the synthetic workbook in `sample-data/`, not real figures.
    | Date | Depositor | TransactionType | Purpose | Description | Amount |
    |---|---|---|---|---|---|
 
-   - `Depositor` is a brother's name, `Bapa` (the person who spends), or a bank label.
+   - `Depositor` is a brother's name, the person who spends from the household account, or a bank label. You set all three under **Setup → Family members**.
    - `Purpose` drives the treatment: `Family Expenses`, `Investments`, `Medical Expense`, `Additional Expense`, `Internal Transfer`, `Bank Charges`.
    - Deposits are positive, withdrawals negative. A totals row is skipped. A cell next to the text `Bank Statement Balance` in the first rows is used for reconciliation.
 3. Review the import summary and confirm.
@@ -104,11 +104,10 @@ tests/          Playwright + pytest end-to-end tests, and crawl.py (whole-app ch
 2. **Settings → Pages → Build and deployment → Source: GitHub Actions**.
 3. The site appears at `https://<user>.github.io/<repo>/`.
 
-Pages sites are public, even when the repository is private, unless your plan supports private Pages. The site contains no data, only the app, but the sidebar shows the brothers' first names. Change them in `src/core.js` (`defaults()`) if that matters. You can also skip Pages and just open `dist/index.html` from a file.
+Pages sites are public, even when the repository is private, unless your plan supports private Pages. The site contains no data and no real names: it starts with made-up names (Aman, Bilal, Chirag, Dev). Enter your family's names under **Setup → Family members**; they are saved in your browser only, and in your backups. You can also skip Pages and just open `dist/index.html` from a file.
 
 ## Known limits
 
-- Brothers' names are fixed in `defaults()`; there is no in-app editor for them yet.
 - Data lives in one browser. Multi-device sharing is not built in.
 - The PDF and most figures assume Indian rupee formatting.
 - Categories are one level deep plus subcategories; a split changes the category of a payment, not its fund.

@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.2.1
+- **Erase everything** removes everything the app saved in the browser and restarts it fresh. It used to reset the data but leave the page's searches and filters behind, and did not say that Setup returns to its starting values.
+- **Setup → Family members**: set the brothers' names, the person who spends and the bank labels. Renaming updates plan lines and cash entries.
+- No real names anywhere in the code, the public site, the sample workbook, the README or the screenshots: everything public uses made-up names. A test fails if a real name is ever added.
+- The version is shown in the sidebar and in Setup, and a "what's new" note appears once after each update.
+
 ## 1.2.0
 - Installs on a phone's Home Screen and opens without internet; shows "A new version is ready" after an update.
 - SheetJS and jsPDF are bundled with the app (pinned, fingerprint-checked) instead of loaded from a CDN.

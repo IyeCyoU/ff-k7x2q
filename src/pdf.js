@@ -32,7 +32,7 @@ function makeReportPDF(d) {
   fill(C.dark); doc.rect(0, 0, W, 36, 'F'); fill(C.brass); doc.rect(0, 36, W, 1.3, 'F');
   font('bold', 23, '#FFFFFF', 'times'); T('Family Fund Report', mL, 16);
   font('normal', 13, '#BFE3D3'); T(mLong(d.m), mL, 25.5);
-  font('normal', 8.5, '#CFE6DB'); T('Yaseer  |  Nasir  |  Shakir  |  Zakir', mR, 16, {align: 'right'}); T('Data through ' + dFull(R.led[R.led.length - 1].date), mR, 22, {align: 'right'});
+  font('normal', 8.5, '#CFE6DB'); T(S.cfg.brothers.join('  |  '), mR, 16, {align: 'right'}); T('Data through ' + dFull(R.led[R.led.length - 1].date), mR, 22, {align: 'right'});
   y = 46;
 
   /* ---- summary tiles ---- */

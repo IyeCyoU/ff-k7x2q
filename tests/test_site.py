@@ -207,7 +207,7 @@ def test_backup_with_password_round_trip(site, browser, tmp_path):
     f = tmp_path / "backup.json"; d.value.save_as(f)
     raw = f.read_text()
     assert '"enc": true' in raw.replace('"enc":true', '"enc": true')
-    for name in pg.evaluate("S.cfg.brothers") + ["Bapa"]:
+    for name in pg.evaluate("S.cfg.brothers") + ["Parent"]:
         assert name not in raw, f"{name} readable in an encrypted backup"
     # wipe, then restore with a wrong and the right password
     pg.evaluate("localStorage.clear()"); pg.reload()
@@ -233,4 +233,80 @@ def test_old_backup_without_password_still_restores(site, browser, tmp_path):
     pg.click("#confirmOk")
     pg.wait_for_selector(".hero")
     assert pg.evaluate("S.tx.length") == n
+    ctx.close()
+
+
+def test_erase_everything_leaves_nothing_behind(site, browser):
+    ctx, pg = open_site(browser, site)
+    load_sample(pg)
+    pg.evaluate("""() => { S.cfg.plan[0].amount = 12345; S.cfg.goal.target = 7777777; S.cfg.categories['My category'] = ['x'];
+        S.cfg.rules.unshift({kw: 'zomato', cat: 'Groceries'}); S.cfg.tol = 9; S.cash.push({id: 'c1', date: '2026-03-30', dir: 'Receipt', amt: 5, cls: 'Household'});
+        UI.txq = 'rent'; persist(); }""")
+    pg.wait_for_timeout(300)                       # let the save land, as it would for a person
+    pg.evaluate("goto('setup')")
+    pg.click("[data-act=resetAll]")
+    with pg.expect_navigation():
+        pg.click("#confirmOk")
+    pg.wait_for_selector("#view")
+    left = pg.evaluate("JSON.parse(localStorage.getItem(KEY))")
+    fresh = pg.evaluate("defaults()")
+    assert left in (None, fresh), "after erasing, nothing or only the app's starting values may be saved"
+    assert pg.evaluate("[S.tx.length, S.cash.length, UI.txq]") == [0, 0, ""]
+    assert pg.query_selector(".hero") is None      # back to the import screen
+    ctx.close()
+
+
+def test_whats_new_appears_once_after_an_update(site, browser):
+    ctx, pg = open_site(browser, site)
+    load_sample(pg)
+    pg.wait_for_timeout(300)
+    version = pg.evaluate("APP_VERSION")
+    assert version in pg.text_content(".side .foot")
+    pg.evaluate("localStorage.setItem(SEEN_KEY, '1.1.0')")   # as if this browser last ran 1.1.0
+    pg.reload()
+    pg.wait_for_selector("#wn-h")
+    assert pg.text_content("#wn-h") == f"Updated to version {version}"
+    assert "What's new in 1.2.0" in pg.text_content("#modalRoot")
+    pg.click("#modalRoot [data-act=closeModal]")
+    pg.reload()
+    pg.wait_for_selector(".hero")
+    assert pg.query_selector("#wn-h") is None, "shown again after it was seen"
+    ctx.close()
+
+
+def test_new_user_does_not_get_whats_new(site, browser):
+    ctx, pg = open_site(browser, site)
+    pg.wait_for_selector("#view")
+    assert pg.query_selector("#wn-h") is None
+    ctx.close()
+
+
+def test_family_members_can_be_renamed(site, browser):
+    ctx, pg = open_site(browser, site)
+    load_sample(pg)
+    pg.evaluate("S.cfg.plan.push({id: 'pz', from: '2026-01', brother: 'Aman', type: 'Investment', amount: 5000, status: 'Active'}); refresh();")
+    pg.evaluate("goto('setup')")
+    pg.fill("#mb-0", "Zed"); pg.keyboard.press("Tab"); pg.wait_for_timeout(200)
+    r = pg.evaluate("({bro: S.cfg.brothers, plan: S.cfg.plan.find(p => p.id === 'pz').brother, side: document.getElementById('brandNames').textContent, people: S.cfg.people})")
+    assert r["bro"][0] == "Zed" and r["plan"] == "Zed" and "Zed" in r["side"] and "Aman" not in r["people"]
+    pg.click("[data-act=addMember]"); pg.wait_for_timeout(150)
+    assert pg.evaluate("S.cfg.brothers.length") == 5
+    pg.fill("#mb-4", ""); pg.keyboard.press("Tab"); pg.wait_for_timeout(150)
+    assert pg.evaluate("S.cfg.brothers.length") == 4
+    ctx.close()
+
+
+def test_data_saved_by_an_older_version_keeps_working(site, browser):
+    """Older versions had no spender or bank-label settings; their saved data must flag nothing new."""
+    ctx, pg = open_site(browser, site)
+    load_sample(pg)
+    before = pg.evaluate("R.exceptions.filter(e => e.code === 'Missing brother').length")
+    pg.evaluate("""() => { clearTimeout(saveT); saveT = null;   // no pending save may overwrite the old-version data
+        const o = JSON.parse(JSON.stringify(S)); delete o.cfg.spender; delete o.cfg.banks;
+        const legacy = ['B', 'a', 'p', 'a'].join('');
+        o.tx.forEach(t => { if (t.dep === 'Parent') t.dep = legacy; });
+        localStorage.setItem(KEY, JSON.stringify(o)); localStorage.setItem(SEEN_KEY, APP_VERSION); }""")
+    pg.reload(); pg.wait_for_selector(".hero")
+    assert pg.evaluate("S.cfg.spender") == "".join(["B", "a", "p", "a"])
+    assert pg.evaluate("R.exceptions.filter(e => e.code === 'Missing brother').length") == before
     ctx.close()

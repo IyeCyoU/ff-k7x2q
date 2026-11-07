@@ -29,9 +29,9 @@ def test_ownership_adds_to_100_percent(loaded):
 
 
 def test_returned_withdrawal_lowers_ownership(loaded):
-    before = js(loaded, "()=>ownership(R.N-1).rows.find(r=>r.b==='Nasir').pct")
-    js(loaded, "()=>{const e=R.led.find(x=>x.kind==='invd'&&x.person==='Nasir');S.overlay[e.id]={inv:'Returned to brother'};refresh();}")
-    after = js(loaded, "()=>ownership(R.N-1).rows.find(r=>r.b==='Nasir').pct")
+    before = js(loaded, "()=>ownership(R.N-1).rows.find(r=>r.b==='Bilal').pct")
+    js(loaded, "()=>{const e=R.led.find(x=>x.kind==='invd'&&x.person==='Bilal');S.overlay[e.id]={inv:'Returned to brother'};refresh();}")
+    after = js(loaded, "()=>ownership(R.N-1).rows.find(r=>r.b==='Bilal').pct")
     assert after < before
 
 
@@ -39,14 +39,14 @@ def test_contribution_plan_suspension(loaded):
     js(loaded, "()=>{S.cfg.plan.push({id:'x',from:'2026-02',brother:'All',type:'Investment',amount:0,status:'Suspended'});refresh();}")
     req = js(loaded, "()=>S.cfg.brothers.map(b=>R.C[b].Investment[R.N-1].req)")
     assert req == [0, 0, 0, 0]
-    earlier = js(loaded, "()=>R.C.Yaseer.Investment[R.mi['2026-01']].req")
+    earlier = js(loaded, "()=>R.C.Aman.Investment[R.mi['2026-01']].req")
     assert earlier == 10000  # history keeps the target that applied then
 
 
 def test_duplicate_rows_are_flagged_not_removed(loaded):
     codes = js(loaded, "()=>R.exceptions.map(e=>e.code)")
     assert "Duplicate possibility" in codes
-    n = js(loaded, "()=>S.tx.filter(t=>t.date==='2025-11-23'&&t.dep==='Yaseer'&&t.purpose==='Family Expenses').length")
+    n = js(loaded, "()=>S.tx.filter(t=>t.date==='2025-11-23'&&t.dep==='Aman'&&t.purpose==='Family Expenses').length")
     assert n == 2
 
 
@@ -62,9 +62,9 @@ def test_split_keeps_totals_and_survives(loaded):
 
 
 def test_cash_ledger_and_atm_itemisation(loaded):
-    js(loaded, """()=>{S.cash.push({id:'c1',date:'2026-03-30',dir:'Receipt',by:'Bapa',person:'Zakir',mode:'Cash',acct:'Cash',cls:'Household',cat:'',sub:'',med:'',src:'Cash in hand',desc:'Cash to Bapa',amt:5000,ref:'',note:''},
-      {id:'c2',date:'2026-03-31',dir:'Payment',by:'Bapa',person:'',mode:'Cash',acct:'Cash',cls:'Household',cat:'Groceries',sub:'',med:'',src:'Cash in hand',desc:'Vegetables',amt:1200,ref:'',note:''},
-      {id:'c3',date:'2026-03-31',dir:'Payment',by:'Bapa',person:'',mode:'Cash',acct:'Cash',cls:'Household',cat:'Groceries',sub:'',med:'',src:'ATM cash (already booked)',desc:'From ATM cash',amt:2000,ref:'',note:''}); refresh();}""")
+    js(loaded, """()=>{S.cash.push({id:'c1',date:'2026-03-30',dir:'Receipt',by:'Parent',person:'Dev',mode:'Cash',acct:'Cash',cls:'Household',cat:'',sub:'',med:'',src:'Cash in hand',desc:'Cash to Parent',amt:5000,ref:'',note:''},
+      {id:'c2',date:'2026-03-31',dir:'Payment',by:'Parent',person:'',mode:'Cash',acct:'Cash',cls:'Household',cat:'Groceries',sub:'',med:'',src:'Cash in hand',desc:'Vegetables',amt:1200,ref:'',note:''},
+      {id:'c3',date:'2026-03-31',dir:'Payment',by:'Parent',person:'',mode:'Cash',acct:'Cash',cls:'Household',cat:'Groceries',sub:'',med:'',src:'ATM cash (already booked)',desc:'From ATM cash',amt:2000,ref:'',note:''}); refresh();}""")
     r = js(loaded, "()=>({cash:R.cashCum[R.N-1],atm:atmStats()})")
     assert r["cash"] == pytest.approx(3800)          # 5000 in, 1200 out; ATM item is memo only
     assert r["atm"]["memo"] == pytest.approx(2000)
