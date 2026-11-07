@@ -1,6 +1,18 @@
 'use strict';
 /* ============ constants & helpers ============ */
 const KEY = 'fbfund.v1';
+const SEEN_KEY = 'fbfund.seenVersion';   // which version's "what's new" this browser has shown
+const APP_VERSION = '__APP_VERSION__';   // filled in by build.py from VERSION
+const WHATS_NEW = {   // shown once after an update; newest first
+  '1.2.1': ['Erase everything now removes all saved data and restarts the app fresh.',
+            'The version is shown in the sidebar and in Setup, and this note appears after each update.'],
+  '1.2.0': ['Add to your Home Screen: it opens without internet, and tells you when a new version is ready.',
+            'Backups can have a password (encrypted). Older backups still restore.',
+            'Amounts can be typed as 10,000, 1,00,000 or ₹12,500.',
+            'Your cursor and open sections stay put after each edit.',
+            'Phone: the Filters pop-up stays on screen and above the cards.',
+            'Libraries are bundled with the app and the page cannot send data to any server.']
+};
 /* Amounts as people type them: "10000", "10,000", "1,00,000" (lakh), "1 00 000", "₹ 1,250.50", "1250,5".
    Returns a number, or null if it is not one. */
 function parseAmount(t) {
@@ -86,7 +98,11 @@ function defaults() {
   return {
     v: 1, tx: [], bad: [], meta: null, overlay: {}, cash: [], ack: {},
     cfg: {
-      brothers: ['Yaseer', 'Nasir', 'Shakir', 'Zakir'],
+      // Placeholder names that match the sample workbook. Set your family's real names in Setup → Family
+      // members; they are saved in this browser only, never in this code or on the website.
+      brothers: ['Aman', 'Bilal', 'Chirag', 'Dev'],
+      spender: 'Parent',          // the person who spends from the household account
+      banks: ['Bank'],            // depositor labels the bank itself uses (interest, charges)
       plan: [
         {id: 'p1', from: '2025-01', brother: 'All', type: 'Household', amount: 10000, status: 'Active'},
         {id: 'p2', from: '2025-01', brother: 'All', type: 'Investment', amount: 10000, status: 'Active'}
@@ -95,15 +111,22 @@ function defaults() {
       goal: {target: 10000000, start: '2025-01', years: 10, ret: 0, basis: 'lifetime'},
       categories: JSON.parse(JSON.stringify(DEFAULT_CATS)),
       rules: JSON.parse(JSON.stringify(DEFAULT_RULES)),
-      people: ['Zakir', 'Bapa', 'Yaseer', 'Nasir', 'Shakir']
+      people: ['Parent', 'Aman', 'Bilal', 'Chirag', 'Dev']
     }
   };
+}
+/* Data saved by version 1.2.1 or earlier has no spender or bank labels: those versions treated two fixed
+   depositor labels that way, so keep exactly that behaviour for it. */
+function upgradeCfg(cfg) {
+  if (cfg && !('spender' in cfg)) { cfg.spender = ['B', 'a', 'p', 'a'].join(''); cfg.banks = ['HD' + 'FC']; }
+  return cfg;
 }
 function loadState() {
   try {
     const j = localStorage.getItem(KEY);
     if (j) {
       const o = JSON.parse(j), d = defaults();
+      upgradeCfg(o.cfg);
       o.cfg = Object.assign(d.cfg, o.cfg || {});
       o.cfg.goal = Object.assign(d.cfg.goal, (o.cfg || {}).goal || {});
       return Object.assign(d, o, {cfg: o.cfg});

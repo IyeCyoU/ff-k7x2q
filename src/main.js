@@ -22,6 +22,7 @@ const ICONS = {
 const TABNAME = Object.fromEntries(TABS);
 const BOTTOM_PRIMARY = ['overview', 'contributions', 'report', 'transactions'];
 function renderNav() {
+  const bn0 = $('#brandNames'); if (bn0) bn0.textContent = S.cfg.brothers.join(' · ');
   const open = R.exceptions.filter(e => !e.ack && e.sev !== 'Low').length;
   $('#nav').innerHTML = NAVG.map(([g, ks]) => '<div class="grp">' + g + '</div>' + ks.map(k => '<button data-act="goto" data-arg="' + k + '"' + (UI.tab === k ? ' aria-current="page"' : '') + '><svg viewBox="0 0 24 24" aria-hidden="true">' + ICONS[k] + '</svg>' + TABNAME[k] + (k === 'controls' && open ? '<span class="badge">' + open + '</span>' : '') + '</button>').join('')).join('');
   const bn = $('#bottomnav'); if (!bn) return;
@@ -226,7 +227,7 @@ function restoreBackup(text) {
   }
   try { if (!o.cfg || !Array.isArray(o.tx)) throw new Error('bad'); } catch (e) { toast('That is not a backup from this app.'); return; }
   confirmModal('Restore backup', '<p>This replaces everything in the app with the backup: ' + o.tx.length + ' bank rows, ' + (o.cash || []).length + ' cash entries and your plan.</p>', 'Restore', () => {
-    const d = defaults(); S = Object.assign(d, o, {cfg: Object.assign(d.cfg, o.cfg)}); S.cfg.goal = Object.assign(d.cfg.goal, o.cfg.goal || {});
+    const d = defaults(); upgradeCfg(o.cfg); S = Object.assign(d, o, {cfg: Object.assign(d.cfg, o.cfg)}); S.cfg.goal = Object.assign(d.cfg.goal, o.cfg.goal || {});
     derive(); defaultFilters(); persist(); refresh(); toast('Backup restored');
   });
 }
@@ -256,7 +257,7 @@ const ACT = {
   ack: el => {
     const k = el.dataset.arg;
     if (S.ack[k]) { delete S.ack[k]; persist(); refresh(); return; }
-    openModal('<div class="modal-bg" data-modal><div class="modal"><h2>Mark as reviewed</h2><div class="field"><label for="ack-n">Note (optional)</label><input id="ack-n" placeholder="e.g. Confirmed with Yaseer, genuine double payment"></div><div class="foot"><button class="btn" data-act="closeModal">Cancel</button><button class="btn primary" id="ackOk">Mark reviewed</button></div></div></div>');
+    openModal('<div class="modal-bg" data-modal><div class="modal"><h2>Mark as reviewed</h2><div class="field"><label for="ack-n">Note (optional)</label><input id="ack-n" placeholder="e.g. Confirmed with the family, genuine double payment"></div><div class="foot"><button class="btn" data-act="closeModal">Cancel</button><button class="btn primary" id="ackOk">Mark reviewed</button></div></div></div>');
     $('#ackOk').onclick = () => { S.ack[k] = {note: $('#ack-n').value.trim(), at: new Date().toISOString()}; closeModal(); persist(); refresh(); };
   },
   spAdd: () => {
@@ -310,6 +311,7 @@ const ACT = {
   exportCash: () => saveFile('cash-ledger.csv', toCSV([['Date', 'Direction', 'By', 'Person', 'Mode', 'Account', 'Class', 'Category', 'Subcategory', 'Source of cash', 'Amount', 'Description', 'Reference', 'Notes']].concat(S.cash.map(c => [c.date, c.dir, c.by, c.person, c.mode, c.acct, c.cls, c.cat, c.sub, c.src, c.amt, c.desc, c.ref, c.note]))), 'text/csv'),
   pdfReport: async () => { const P = periodInfo(), d = reportData(P.sel); try { const buf = makeReportPDF(d); await saveFile('family-fund-report-' + d.m + '.pdf', buf, 'application/pdf'); } catch (e) { toast('Could not build the PDF: ' + e.message); } },
   copyReport: async () => { const t = whatsappText(reportData(periodInfo().sel)); try { await navigator.clipboard.writeText(t); toast('Copied. Paste it into WhatsApp.'); } catch (e) { const ta = document.createElement('textarea'); ta.value = t; document.body.appendChild(ta); ta.select(); try { document.execCommand('copy'); toast('Copied. Paste it into WhatsApp.'); } catch (e2) { openModal('<div class="modal-bg" data-modal><div class="modal"><h2>Copy this text</h2><div class="field"><textarea rows="14" readonly>' + esc(t) + '</textarea></div><div class="foot"><button class="btn primary" data-act="closeModal">Close</button></div></div></div>'); } ta.remove(); } },
+  addMember: () => { let k = S.cfg.brothers.length + 1, name; do { name = 'Brother ' + k++; } while (S.cfg.brothers.includes(name)); S.cfg.brothers.push(name); S.cfg.people.push(name); persist(); refresh(); const el = $('#mb-' + (S.cfg.brothers.length - 1)); if (el) { el.focus(); el.select(); } },
   addPlan: () => { const last = R.months.length ? R.months[R.months.length - 1] : todayISO().slice(0, 7); S.cfg.plan.push({id: uid(), from: addMonths(last, 1), brother: 'All', type: 'Household', amount: 10000, status: 'Active'}); persist(); refresh(); },
   delPlan: el => { S.cfg.plan = S.cfg.plan.filter(p => p.id !== el.dataset.arg); persist(); refresh(); },
   saveCats: () => {
@@ -321,7 +323,10 @@ const ACT = {
   delRule: el => { S.cfg.rules.splice(+el.dataset.arg, 1); persist(); refresh(); },
   backup: () => backupDialog(),
   pickBackup: () => $('#file').click(),
-  resetAll: () => confirmModal('Erase everything', '<p>This deletes the imported transactions, cash entries, plan and notes from this browser. Save a backup first if unsure.</p>', 'Erase', () => { S = defaults(); persist(); UI.f = {year: 'All', month: 'All', brother: 'All', ctype: 'All', cat: 'All', mode: 'All', ttype: 'All'}; refresh(); toast('Erased'); }, true)
+  resetAll: () => confirmModal('Erase everything',
+    '<p>This removes everything this app has saved in this browser: imported bank rows, cash entries, your contribution plan, goal, categories, rules, splits, notes and reviewed items. It cannot be undone. Save a backup first if you might need any of it.</p>' +
+    '<p class="small">The app then restarts as if opened for the first time, so Setup shows its starting values again (the brothers\' names, ₹10,000 plan lines and the default categories) until you change them.</p>',
+    'Erase everything', eraseAll, true)
 };
 ACT.editTx = el => {
   const e = R.byId[el.dataset.arg]; if (!e) return;
@@ -375,6 +380,13 @@ document.addEventListener('change', ev => {
     UI.txpage = 0; renderView(); return;
   }
   if (t.dataset.ruleP !== undefined || t.dataset.rulePayee !== undefined) { if (!t.value) return; S.cfg.rules.unshift({kw: t.dataset.rulePayee.toLowerCase(), cat: t.value}); persist(); refresh(); toast('Rule added for ' + t.dataset.rulePayee); return; }
+  if (t.dataset.member !== undefined) {
+    const i = +t.dataset.member, old = S.cfg.brothers[i], v = t.value.trim();
+    if (v && v !== old && S.cfg.brothers.includes(v)) { toast(v + ' is already in the list.'); renderView(); return; }
+    if (!v) { S.cfg.brothers.splice(i, 1); S.cfg.people = S.cfg.people.filter(p => p !== old); }
+    else { renameMember(old, v); S.cfg.brothers[i] = v; }
+    persist(); refresh(); return;
+  }
   if (t.dataset.plan) { const p = S.cfg.plan.find(x => x.id === t.dataset.plan); if (!p) return; let v = t.value; if (t.dataset.k === 'amount') v = Math.max(0, +v || 0); if (t.dataset.k === 'from' && !/^\d{4}-\d{2}$/.test(v)) return; p[t.dataset.k] = v; persist(); refresh(); return; }
   if (t.dataset.goal) { if (t.dataset.goal === 'ret') S.cfg.goal.ret = Math.max(0, +t.value || 0); else S.cfg.goal.basis = t.value; persist(); renderView(); return; }
   if (t.dataset.txf) { UI[t.dataset.txf] = t.value; UI.txpage = 0; $('#txBody').innerHTML = txTableHTML(); return; }
@@ -386,6 +398,8 @@ document.addEventListener('change', ev => {
     else if (k === 'gstart' && /^\d{4}-\d{2}$/.test(t.value)) S.cfg.goal.start = t.value;
     else if (k === 'gyears') S.cfg.goal.years = Math.min(40, Math.max(1, +t.value || 10));
     else if (k === 'meddef') S.cfg.medicalDefault = t.value;
+    else if (k === 'spender') { const v = t.value.trim(); if (!v) { renderView(); return; } renameMember(S.cfg.spender, v); S.cfg.spender = v; }
+    else if (k === 'banks') S.cfg.banks = t.value.split(',').map(x => x.trim()).filter(Boolean);
     persist(); refresh(); return;
   }
   if (t.id === 'cf-dir' || t.id === 'cf-cls' || t.id === 'cf-cat') { if (t.id === 'cf-cat') $('#cf-sub').dataset.cur = ''; cashModalSync(); }
@@ -413,9 +427,44 @@ document.addEventListener('mousemove', ev => { if (tipEl.style.display === 'none
 document.addEventListener('mouseout', ev => { if (ev.target.closest && ev.target.closest('[data-tip]')) tipEl.style.display = 'none'; });
 document.addEventListener('click', ev => { const t = ev.target.closest && ev.target.closest('[data-tip]'); if (t && !ev.target.closest('[data-act]')) { placeTip(t, ev); clearTimeout(placeTip.h); placeTip.h = setTimeout(() => { tipEl.style.display = 'none'; }, 2200); } });
 
+/* ============ family members ============ */
+// A new name replaces the old one everywhere this app stored it (bank rows stay as imported).
+function renameMember(old, v) {
+  if (!old || old === v) return;
+  for (const p of S.cfg.plan) if (p.brother === old) p.brother = v;
+  for (const c of S.cash) { if (c.by === old) c.by = v; if (c.person === old) c.person = v; }
+  S.cfg.people = S.cfg.people.map(p => p === old ? v : p);
+  if (!S.cfg.people.includes(v)) S.cfg.people.push(v);
+}
+
+/* ============ erase ============ */
+function eraseAll() {
+  clearTimeout(saveT); saveT = null;              // a pending save must not write the old data back
+  try { Object.keys(localStorage).filter(k => k.startsWith('fbfund.')).forEach(k => localStorage.removeItem(k)); } catch (e) {}
+  try { sessionStorage.clear(); } catch (e) {}
+  S = defaults();
+  location.reload();                              // clears every search, filter, sort and open dialog too
+}
+
+/* ============ version and what's new ============ */
+const cmpVer = (a, b) => { const x = a.split('.').map(Number), y = b.split('.').map(Number); for (let i = 0; i < 3; i++) if ((x[i] || 0) !== (y[i] || 0)) return (x[i] || 0) - (y[i] || 0); return 0; };
+function whatsNew() {
+  let seen = null; try { seen = localStorage.getItem(SEEN_KEY); } catch (e) {}
+  try { localStorage.setItem(SEEN_KEY, APP_VERSION); } catch (e) {}
+  if (seen === APP_VERSION) return;
+  if (seen === null && !S.tx.length && !S.cash.length) return;   // a brand-new user: nothing to compare with
+  const vs = Object.keys(WHATS_NEW).filter(v => cmpVer(v, APP_VERSION) <= 0 && (!seen || cmpVer(v, seen) > 0));
+  if (!vs.length) return;
+  openModal('<div class="modal-bg" data-modal><div class="modal" role="dialog" aria-modal="true" aria-labelledby="wn-h"><h2 id="wn-h">Updated to version ' + esc(APP_VERSION) + '</h2>' +
+    vs.map(v => '<h3 style="margin:14px 0 6px;font-size:14px">What\'s new in ' + esc(v) + '</h3><ul style="margin:0;padding-left:18px;line-height:1.55">' + WHATS_NEW[v].map(x => '<li>' + esc(x) + '</li>').join('') + '</ul>').join('') +
+    '<div class="foot"><button class="btn primary" data-act="closeModal">OK</button></div></div></div>');
+}
+
 /* ============ start ============ */
 derive();
 if (R.months.length) defaultFilters();
 persist();
 renderNav(); renderFilters(); renderView();
+{ const f = document.querySelector('.side .foot'); if (f) f.insertAdjacentHTML('beforeend', '<div class="small" style="margin-top:8px;opacity:.75">Version ' + esc(APP_VERSION) + '</div>'); }
+whatsNew();
 

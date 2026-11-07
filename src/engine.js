@@ -39,7 +39,7 @@ function classifyBank(t) {
   const bro = isBro(t.dep), P = t.purpose, a = t.amt;
   let kind, flags = [];
   if (t.type === 'Internal Transfer' || P === 'Internal Transfer') kind = 'xfer';
-  else if (P === 'Family Expenses') { if (a > 0) { kind = bro ? 'hhc' : 'rcpt'; if (!bro && !['Bapa', 'HDFC'].includes(t.dep)) flags.push('Missing brother'); } else kind = 'hhx'; }
+  else if (P === 'Family Expenses') { if (a > 0) { kind = bro ? 'hhc' : 'rcpt'; if (!bro && ![S.cfg.spender, ...(S.cfg.banks || [])].includes(t.dep)) flags.push('Missing brother'); } else kind = 'hhx'; }
   else if (P === 'Investments') { if (a > 0) { kind = 'invc'; if (!bro) flags.push('Missing brother'); } else kind = (ov.inv === 'Returned to brother' && bro) ? 'invr' : 'invd'; }
   else if (P === 'Additional Expense') kind = a > 0 ? 'spc' : 'spx';
   else if (P === 'Medical Expense') kind = 'med';
@@ -328,7 +328,8 @@ function buildExceptions() {
   if (mwi.length) add({sev: 'Medium', code: 'Investment allocation inconsistency', title: mwi.length + ' contribution row(s) mention medical expenses', detail: 'Wording says medical, but the money was booked as ' + [...new Set(mwi.map(e => e.purpose))].join(' / ') + '. These count toward the housing goal and ownership. Decide if that is intended.', ids: mwi.map(e => e.id), amount: sum(mwi, e => e.amt), count: mwi.length, tab: 'transactions'});
   const mwh = mw.filter(e => e.kind === 'hhx');
   if (mwh.length) add({sev: 'Low', code: 'Missing classification', title: mwh.length + ' household expense(s) look medical by payee name', detail: 'Booked as Family Expenses, so they are outside the medical reports. Reclassify in your workbook if they should be medical.', ids: mwh.map(e => e.id), amount: sum(mwh, e => e.amt), count: mwh.length, tab: 'transactions', sig: 'medlook'});
-  const toBro = led.filter(e => e.src === 'Bank' && e.kind === 'hhx' && /\b(yaseer|nasir|shakir|zakir)\b/i.test(e.payee));
+  const broRe = new RegExp('\\b(' + S.cfg.brothers.map(b => b.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|') + ')\\b', 'i');
+  const toBro = led.filter(e => e.src === 'Bank' && e.kind === 'hhx' && S.cfg.brothers.length && broRe.test(e.payee));
   if (toBro.length) add({sev: 'Low', code: 'Missing classification', title: toBro.length + ' household payment(s) went to a brother\'s name (' + inr(-sum(toBro, e => e.amt)) + ')', detail: 'Could be reimbursements for something a brother paid. If so, confirm they should reduce the household fund and are not returns of contribution.', ids: toBro.map(e => e.id), amount: sum(toBro, e => e.amt), count: toBro.length, tab: 'transactions', sig: 'tobro'});
   // contribution mismatch (current outstanding)
   const last = R.N - 1;
