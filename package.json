@@ -1,0 +1,9 @@
+{
+  "name": "family-fund",
+  "private": true,
+  "description": "Libraries bundled into the app by build.py. Pinned; build.py also checks their SHA-256.",
+  "dependencies": {
+    "jspdf": "2.5.1",
+    "xlsx": "0.18.5"
+  }
+}

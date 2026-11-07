@@ -1,5 +1,15 @@
 # Changelog
 
+## 1.2.0
+- Installs on a phone's Home Screen and opens without internet; shows "A new version is ready" after an update.
+- SheetJS and jsPDF are bundled with the app (pinned, fingerprint-checked) instead of loaded from a CDN.
+- Strict security policy: the page cannot send anything to any server.
+- Backups can have a password (AES-256 encryption). Older backups still restore.
+- Money boxes accept 10,000, 1,00,000 (lakh) and ₹ amounts, and no longer change on mouse-wheel scroll.
+- The cursor stays where you were after an edit, and open sections stay open.
+- Phone: the Filters pop-up stays on screen and above the cards; notifications no longer block taps.
+- Source recovered from the 1.1.0 build; tests, whole-app check and Pages publishing run on every change.
+
 ## 1.1.0
 - Redesigned filter bar: Year and Month stay visible; Brother, Contribution type, Expense category, Payment mode and Transaction type collapse into a "Filters" button with an active-count badge.
 - Inline quick-edit: Category and Mode can be changed directly in the Transactions table, no dialog needed, for the common case.

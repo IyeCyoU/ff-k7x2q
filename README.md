@@ -43,6 +43,10 @@ All screenshots use the synthetic workbook in `sample-data/`, not real figures.
 
 To try it without real data, generate a synthetic workbook: `python sample-data/make_sample.py`.
 
+## Install on a phone, use offline
+
+Open the site in Safari (iPhone) or Chrome (Android) and choose **Add to Home Screen**. After the first visit it opens without internet. When a new version is published, the app shows **A new version is ready. Reload**.
+
 ## Run it on a PC with no internet
 
 `python build.py --offline` also writes `dist/family-fund-offline.html`, one file with every library inlined. Copy it anywhere, double-click it and it opens in Chrome or Edge. It downloads the two libraries once into `vendor/` (git-ignored) if they are not there yet.
@@ -52,19 +56,22 @@ Data is saved in the browser for that file location, so keep the file in one pla
 ## Privacy
 
 - Nothing is uploaded. The workbook is parsed in the browser and saved in that browser's local storage.
-- Use **Setup → Save backup** to keep a copy; use **Restore backup** to move to another device.
+- Use **Setup → Save backup** to keep a copy; use **Restore backup** to move to another device. Give the backup a password: it is then encrypted (AES-256) and unreadable without it. The password cannot be recovered. Backups without a password, including older ones, still restore.
 - `.gitignore` blocks `*.xlsx`, `*.csv` and backup files so real data is not committed by accident. Only `sample-data/sample-workbook.xlsx` is allowed.
-- The app loads SheetJS and jsPDF from cdnjs and fonts from Google Fonts. It falls back to system fonts offline.
+- SheetJS and jsPDF are bundled with the app (pinned versions, checked by fingerprint at build time), so nothing is loaded from a CDN. Only the two fonts come from Google Fonts; without them the app uses system fonts.
+- A strict security policy stops the page from sending anything to any server.
 
 ## Development
 
 Only Python is needed to build. Node is optional (used for a syntax check if present).
 
 ```bash
-python build.py                       # bundles src/ into dist/index.html
+npm ci --ignore-scripts               # the two pinned libraries (or set LOCAL_VENDOR, or let build.py download them)
+python build.py --offline             # dist/ (the website) and dist/family-fund-offline.html
 pip install -r requirements-dev.txt
 playwright install chromium
-pytest -q                             # end-to-end tests against the sample workbook
+pytest -q                             # end-to-end tests: the app, and the website as GitHub Pages serves it
+python tests/crawl.py                 # whole-app check: every page, button, dialog and box, desktop and phone
 python scripts/screenshots.py         # refresh docs/screenshots
 ```
 
@@ -77,18 +84,21 @@ src/
   views2.js     household, investments, housing goal, monthly report, transactions
   views3.js     cash ledger, controls, setup, edit dialogs
   pdf.js        PDF report
-  main.js       navigation, events, import, sorting, backup
+  main.js       navigation, events, import, sorting, backup (optionally encrypted)
+  pwa.js        offline support registration and the "new version" prompt
+  sw.js         offline cache (build.py fills in the version and file list)
+  icons/, manifest.webmanifest   Home Screen install
   style.css     design tokens and components
   fontdata.js   Roboto subset (rupee sign) for the PDF, see scripts/make_font_subset.py
 sample-data/    synthetic workbook generator
-tests/          Playwright + pytest end-to-end tests
+tests/          Playwright + pytest end-to-end tests, and crawl.py (whole-app check)
 ```
 
-Offline test runs: set `LOCAL_VENDOR` to a folder containing `xlsx/dist/xlsx.full.min.js` and `jspdf/dist/jspdf.umd.min.js` (for example an `npm i xlsx@0.18.5 jspdf@2.5.1` `node_modules`).
+`build.py` takes the libraries from `LOCAL_VENDOR`, `node_modules/` or `vendor/`, or downloads them once, and stops if a file does not match its pinned SHA-256.
 
 ## Deploy (GitHub Pages)
 
-`.github/workflows/pages.yml` builds and publishes `dist/` on every push to `main`.
+`.github/workflows/ci.yml` runs every test and the whole-app check on every push and pull request. On `main`, if all of them pass, it publishes `dist/`. A failing test means the site stays on the previous version.
 
 1. Push the repository to GitHub.
 2. **Settings → Pages → Build and deployment → Source: GitHub Actions**.
