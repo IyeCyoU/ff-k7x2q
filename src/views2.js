@@ -39,7 +39,7 @@ function vInvest() {
   const deployed = I.reduce((a, r, i) => i <= ai ? a + r.deployed : a, 0);
   const kvs = '<div class="kv"><div class="r"><span>Opening investment balance</span><b>' + inr(I[0].open) + '</b></div><div class="r"><span>+ Contributions received</span><b>' + inr(contrib) + '</b></div><div class="r"><span>− Investment deployed</span><b>' + inr(deployed) + '</b></div><div class="r"><span>− Withdrawals returned to brothers</span><b>' + inr(retd) + '</b></div><div class="r"><span>± Adjustments</span><b>' + inr(0) + '</b></div><div class="r tot"><span>Closing investment balance (awaiting deployment)</span><b>' + inr(I[ai].close) + '</b></div></div>' +
     '<div class="kv mt"><div class="r"><span>Total contributed, net of returns</span><b>' + inr(own.total) + '</b></div><div class="r"><span>Deployed so far</span><b>' + inr(deployed) + '</b></div><div class="r"><span>Current investment pool (contributed − returned)</span><b>' + inr(own.total) + '</b></div></div>';
-  const H = R.F.H[ai], fam = R.famCum[ai];
+  const H = R.F.H[ai], fam = R.ownCum[ai];
   const call = (H.close < -tol && I.close > 0) ? '<div class="callout warn"><b>Where the investment money actually is.</b> The ledger says ' + inr(I.close) + ' is waiting to be deployed, but the bank and cash hold only ' + inr(fam) + '. The household fund is ' + inr(-H.close) + ' overdrawn, so that gap has effectively been funded from investment contributions. Ownership percentages are unaffected. Decide whether the household fund should repay it.</div>' : '';
   const ti = trendIdx();
   const mt = tbl([{h: 'Month', f: i => '<b>' + mLong(R.months[i]) + '</b>'}, {h: 'Opening', cls: 'num', f: i => inr(I[i].open)}, {h: 'Contributions', cls: 'num', f: i => inr(I[i].contrib)}, {h: 'Deployed', cls: 'num', f: i => inr(I[i].deployed)}, {h: 'Withdrawn', cls: 'num', f: i => inr(I[i].returned)}, {h: 'Closing', cls: 'num', f: i => '<b>' + inr(I[i].close) + '</b>'}], ti.slice().reverse(), {maxH: 380});
@@ -86,7 +86,7 @@ function reportData(m) {
   return {
     m, i, con, H: R.F.H[i], I: R.F.I[i], Sp: R.F.S[i], Md: R.F.M[i], cats: categoryBreakdown(ents.filter(e => e.fund === 'H' || e.memo)), top,
     med: ents.filter(e => e.kind === 'med'), spec: ents.filter(e => e.fund === 'S' || e.kind === 'spc'), cash: ents.filter(e => e.src === 'Cash'),
-    invIn: B.map(b => ({b, v: sum(ents.filter(e => e.kind === 'invc' && e.person === b), x => x.amt)})), own, goal: goalCalc(i), fam: R.famCum[i],
+    invIn: B.map(b => ({b, v: sum(ents.filter(e => e.kind === 'invc' && e.person === b), x => x.amt)})), own, goal: goalCalc(i), fam: R.ownCum[i], held: R.F.O[i].close,
     open: R.exceptions.filter(e => !e.ack && e.sev !== 'Low').length, medTreat: S.cfg.medicalDefault
   };
 }
@@ -152,6 +152,7 @@ function whatsappText(d) {
   if (d.cash.length) t.push('', '*Cash*', d.cash.length + ' cash entries');
   t.push('', '*Housing goal*', pct(d.goal.pct) + ' of ' + lakh(d.goal.target) + ' done. Needed ' + inr(d.goal.reqMonthly) + '/month from here; current pace ' + inr(d.goal.pace) + '.');
   t.push('', 'Total family fund position: ' + inr(d.fam));
+  if (Math.abs(d.held) > S.cfg.tol) t.push('Held for others (not the family\'s): ' + inr(d.held));
   return t.join('\n');
 }
 

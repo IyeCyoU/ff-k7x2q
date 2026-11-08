@@ -57,20 +57,20 @@ function defaultFilters() {
 function vOverview() {
   const P = periodInfo(), ai = P.end, B = S.cfg.brothers, tol = S.cfg.tol;
   const H = R.F.H[ai], I = R.F.I[ai], Sp = R.F.S[ai], Md = R.F.M[ai], X = R.F.X[ai];
-  const fam = R.famCum[ai], bank = R.bankCum[ai], cash = R.cashCum[ai] + R.pendCum[ai];
+  const fam = R.ownCum[ai], held = R.F.O[ai].close, bank = R.bankCum[ai], cash = R.cashCum[ai] + R.pendCum[ai];
   const isLast = ai === R.N - 1, sbx = bankStatementBalance(), st = sbx ? sbx.bal : null;
   const recOK = isLast && st != null ? Math.abs(R.bankCum[ai] - st) <= tol : null;
   const eq = [['Investment fund', I.close], ['Household fund', H.close]];
   if (Math.abs(Sp.close) > tol) eq.push(['Special / extraordinary fund', Sp.close]);
   if (Math.abs(Md.close) > tol) eq.push(['Separate medical fund', Md.close]);
-  if (Math.abs(R.F.O[ai].close) > tol) eq.push(['Outside the family fund', R.F.O[ai].close]);
   if (Math.abs(X.close) > tol) eq.push(['Unclassified / not reviewed', X.close]);
   let msg = '';
   if (H.close < -tol && I.close > 0) msg = 'The household fund is overdrawn by ' + inr(-H.close) + ', so money that was contributed for investment is covering day-to-day and medical spending. See Household and Investments.';
   else if (H.close < -tol) msg = 'The household fund is overdrawn by ' + inr(-H.close) + '.';
   else msg = 'Every fund is at or above zero.';
-  const hero = '<div class="hero"><div><div class="lbl">Total family fund position, ' + esc(dFull(R.led.length ? (R.led.filter(e => e.month <= P.asOf).slice(-1)[0] || {date: ''}).date : '')) + '</div><div class="big">' + inr(fam) + '</div><div class="msg">' + esc(msg) + '</div><div style="margin-top:12px;display:flex;gap:8px;flex-wrap:wrap"><span class="pill">Bank ' + inr2(bank) + '</span>' + (Math.abs(cash) > 0.005 ? '<span class="pill">Cash in hand ' + inr2(cash) + '</span>' : '') + (recOK === true ? '<span class="pill">Matches statement</span>' : recOK === false ? '<span class="pill" style="background:#B03625">Differs from statement</span>' : '') + '</div><div class="spark">' + sparkSVG(R.famCum.slice(Math.max(0, ai - 23), ai + 1)) + '</div></div>' +
-    '<div class="eq">' + eq.map(([l, v]) => '<div class="r ' + (v < 0 ? 'neg' : '') + '"><span>' + l + '</span><b>' + inr(v) + '</b></div>').join('') + '<div class="r"><span>Total</span><b>' + inr(fam) + '</b></div></div></div>';
+  const hero = '<div class="hero"><div><div class="lbl">Total family fund position, ' + esc(dFull(R.led.length ? (R.led.filter(e => e.month <= P.asOf).slice(-1)[0] || {date: ''}).date : '')) + '</div><div class="big">' + inr(fam) + '</div><div class="msg">' + esc(msg) + '</div><div style="margin-top:12px;display:flex;gap:8px;flex-wrap:wrap"><span class="pill">Bank ' + inr2(bank) + '</span>' + (Math.abs(cash) > 0.005 ? '<span class="pill">Cash in hand ' + inr2(cash) + '</span>' : '') + (recOK === true ? '<span class="pill">Matches statement</span>' : recOK === false ? '<button class="pill" style="background:#B03625;border:0;color:#fff;cursor:pointer" data-act="goto" data-arg="controls" title="' + esc(driftText() || 'See Controls') + '">Differs from statement: see why</button>' : '') + '</div><div class="spark">' + sparkSVG(R.ownCum.slice(Math.max(0, ai - 23), ai + 1)) + '</div></div>' +
+    '<div class="eq">' + eq.map(([l, v]) => '<div class="r ' + (v < 0 ? 'neg' : '') + '"><span>' + l + '</span><b>' + inr(v) + '</b></div>').join('') + '<div class="r"><span>Total</span><b>' + inr(fam) + '</b></div>' +
+    (Math.abs(held) > tol ? '<div class="r held" title="In the bank for someone else until it is paid out. Not counted in the family\'s total."><span>Also in the bank, held for others (not the family\'s)</span><b>' + inr(held) + '</b></div>' : '') + '</div></div>';
 
   // KPIs
   const si = R.mi[P.sel], req = ctMonthSum(si, 'req'), recv = ctMonthSum(si, 'paid');
@@ -94,7 +94,7 @@ function vOverview() {
     kpi('Cash transactions, ' + per, cashE.length ? inr(sum(cashE, e => Math.abs(e.amt))) : '₹0', cashE.length + ' entries' + (memoN ? ', ' + memoN + ' ATM items' : '')),
     kpi('Medical expenses, ' + per, inr(sum(medE, e => -e.amt)), medE.filter(e => !(e.splitIdx > 1)).length + ' payments'),
     kpi('Housing goal progress', pct(gc.pct), inr(gc.total) + ' of ' + lakh(gc.target), ''),
-    kpi('Total family fund position', inr(fam), 'Bank + cash in hand', fam < 0 ? 'neg' : ''),
+    kpi('Total family fund position', inr(fam), Math.abs(held) > tol ? 'Bank + cash, less ' + inr(held) + ' held for others' : 'Bank + cash in hand', fam < 0 ? 'neg' : ''),
     kpi('Items to review', String(ex.length), ex.length ? 'High or medium, not yet reviewed' : 'Nothing pending', ex.length ? 'warn' : 'pos')
   ];
   const grp = (t, ix) => '<div class="kgroup"><h2>' + t + '</h2><div class="kgrid">' + ix.map(i => k[i]).join('') + '</div></div>';

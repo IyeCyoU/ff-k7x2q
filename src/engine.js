@@ -161,6 +161,8 @@ function derive() {
   R.bankCum = bankM.map(v => cb += v); R.cashCum = cashM.map(v => cc += v); R.pendCum = pendM.map(v => cp += v);
   R.bankBy = bankBy; R.bankM = bankM;
   R.famCum = months.map((m, i) => R.bankCum[i] + R.cashCum[i] + R.pendCum[i]);
+  // the family's own money: what the bank and cash hold, minus money that is only passing through for others
+  R.ownCum = months.map((m, i) => r2(R.famCum[i] - R.F.O[i].close));
 
   // contributions
   R.C = {};
@@ -354,7 +356,7 @@ function buildExceptions() {
   if (R.N && R.cashCum[last] < -tol) add({sev: 'High', code: 'Negative fund balance', title: 'Cash in hand is negative (' + inr(R.cashCum[last]) + ')', detail: 'Cash payments recorded exceed cash received.', ids: [], amount: R.cashCum[last], count: 1, tab: 'cash', sig: 'cash'});
   // reconciliation
   const sbx = bankStatementBalance(), st = sbx ? sbx.bal : null;
-  if (R.N && st != null) { const diff = r2(R.bankCum[last] - st); if (Math.abs(diff) > tol) add({sev: 'High', code: 'Unreconciled amount', title: 'Ledger differs from statement balance by ' + inr2(diff), detail: 'Ledger ' + inr2(R.bankCum[last]) + ' vs statement ' + inr2(st) + '.', ids: [], amount: diff, count: 1, tab: 'controls', sig: 'stmt'}); }
+  if (R.N && st != null) { const diff = r2(R.bankCum[last] - st); if (Math.abs(diff) > tol) add({sev: 'High', code: 'Unreconciled amount', title: 'Ledger differs from statement balance by ' + inr2(diff), detail: driftText() || ('Ledger ' + inr2(R.bankCum[last]) + ' vs statement ' + inr2(st) + '.'), ids: [], amount: diff, count: 1, tab: 'controls', sig: 'stmt'}); }
   if (R.N && st == null) add({sev: 'Medium', code: 'Unreconciled amount', title: 'No statement balance to compare with', detail: 'Enter it under Setup so the ledger can be reconciled.', ids: [], amount: 0, count: 1, tab: 'setup', sig: 'nostmt'});
   for (const t of R.splitBroken) add({sev: 'Medium', code: 'Split mismatch', title: 'The category split on ' + dFull(t.date) + ' (' + inr(t.amt) + ') no longer adds up', detail: 'The payment or its kind changed since you split it, so the split is ignored and the whole amount keeps one category. Open the row and split again.', ids: [t.id], amount: t.amt, count: 1, tab: 'transactions', sig: 'split' + t.id});
   // cash ledger checks
@@ -421,6 +423,7 @@ function buildChecks() {
   add('Ownership percentages add to 100%', own.total > 0 ? 1 : 0, opct, 'Each brother\'s net contribution ÷ total');
   add('Housing goal contributed = net investment contributions', r2(own.total + R.invUnassigned), r2(goalCalc(last).total), '');
   add('Family fund position = fund balances', r2(R.famCum[last]), r2(funds), 'Bank ledger + cash in hand + pending manual bank entries');
+  add('Family\'s own money = bank + cash − money held for others', r2(R.famCum[last] - R.F.O[last].close), r2(R.ownCum[last]), 'Money passing through for others is shown separately, not as the family\'s');
   const xf = r2(sum(R.led.filter(e => e.kind === 'xfer' && e.src === 'Bank'), e => e.amt));
   add('Internal transfers net to zero', 0, xf, 'In and out transfers between family accounts');
   const unc = R.led.filter(e => e.kind === 'oth' && !e.flags.includes('Not reviewed'));

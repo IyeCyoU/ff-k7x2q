@@ -194,3 +194,36 @@ def test_review_page_has_no_errors_and_fits_a_phone(loaded):
     loaded.click(f'#view [data-act=rvSplit][data-arg="{rid}"]')
     assert js(loaded, "document.documentElement.scrollWidth") <= 393
     assert loaded.errors == []
+
+
+def test_money_held_for_others_is_not_the_familys(loaded):
+    """A brother deposits 42,500: 12,500 household, 30,000 to pass on. The family's total must not include
+    the 30,000; it is shown separately as held for others."""
+    import_statement(loaded, APRIL)
+    rid = row_id(loaded, "CHIRAG SAMPLE")
+    js(loaded, """id => { approveRow(id, [{who: 'Chirag', purpose: 'Family Expenses', reason: '', amt: 12500},
+        {who: 'Chirag', purpose: 'Outside Fund', reason: 'Payable to a third party', amt: 12500}]); derive(); goto('overview'); }""", rid)
+    r = js(loaded, "() => ({own: R.ownCum[R.N-1], fam: R.famCum[R.N-1], held: R.F.O[R.N-1].close, big: document.querySelector('.hero .big').textContent, eq: document.querySelector('.hero .eq').innerText})")
+    assert r["held"] == pytest.approx(12500)
+    assert r["own"] == pytest.approx(r["fam"] - 12500)
+    assert r["big"] == js(loaded, "v => inr(v)", r["own"]), "the big total is the family's own money"
+    assert "held for others" in r["eq"] and "Outside the family fund" not in r["eq"].split("Total")[0]
+    wa = js(loaded, "() => whatsappText(reportData(R.months[R.N - 1]))") if js(loaded, "typeof reportData === 'function'") else None
+    if wa is not None:
+        assert "Held for others" in wa
+    assert all(c["status"] != "Difference" for c in js(loaded, "() => R.checks"))
+
+
+def test_a_balance_difference_explains_where_it_starts(loaded):
+    import_statement(loaded, MAY)            # April skipped, so the app is missing April's rows
+    r = js(loaded, "() => ({d: bankDrift(), text: driftText(), exc: R.exceptions.find(e => e.code === 'Unreconciled amount')})")
+    assert r["d"]["first"] is True and abs(r["d"]["diff"]) > 1
+    assert "comes from your Excel history before that day" in r["text"]
+    assert r["exc"]["detail"] == r["text"]
+    js(loaded, "goto('overview')")
+    assert "see why" in loaded.text_content(".hero")
+
+
+def test_no_difference_means_no_explanation(loaded):
+    import_statement(loaded, APRIL)
+    assert js(loaded, "() => bankDrift()") is None

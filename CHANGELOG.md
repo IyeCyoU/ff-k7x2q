@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.3.1
+- The family fund position no longer includes money held for others (Outside the family fund); it is shown on its own line under the total, and in the monthly report, WhatsApp text and PDF.
+- "Differs from statement" explains itself: the app finds the first day its bank balance and the bank's disagree, and says whether the gap comes from the Excel history before the first statement or from a day inside it.
+
 ## 1.3.0
 - **Import the bank's own statement** (HDFC net banking Excel, .xls or .xlsx). The running balance and the bank's own summary are checked; rows already imported, or already in your Excel history, are skipped; a statement that does not continue from the app's balance (a missing month) is flagged.
 - **To review**: every bank row waits for your approval of *who* and *what for*. Suggestions come from your history, brothers' names and the narration's remark ("MONTHLY EXPENSES", "INVESTMENT", "LOAN REPAYMENT"…). Until approved a row is in the bank balance but in no brother's contribution and no fund.
