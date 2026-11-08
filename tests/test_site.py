@@ -2,7 +2,9 @@
 
 Offline use, updates, the security policy, amounts typed the way people type them, the phone layout,
 and keeping your place while editing."""
+import base64
 import functools
+import json
 import http.server
 import pathlib
 import shutil
@@ -206,9 +208,15 @@ def test_backup_with_password_round_trip(site, browser, tmp_path):
         pg.click("#bk-ok")
     f = tmp_path / "backup.json"; d.value.save_as(f)
     raw = f.read_text()
-    assert '"enc": true' in raw.replace('"enc":true', '"enc": true')
+    obj = json.loads(raw)
+    # only the envelope is readable; everything else is inside the ciphertext
+    assert set(obj) == {"app", "kind", "v", "enc", "salt", "iv", "ct"} and obj["enc"] is True
+    envelope = json.dumps({k: v for k, v in obj.items() if k != "ct"})
     for name in pg.evaluate("S.cfg.brothers") + ["Parent"]:
-        assert name not in raw, f"{name} readable in an encrypted backup"
+        assert name not in envelope, f"{name} readable in an encrypted backup"
+    # (the ciphertext is random base64, so short names can appear in it by chance; it must not be readable)
+    ct = base64.b64decode(obj["ct"])
+    assert b'"tx"' not in ct and b'"brothers"' not in ct, "backup contents are not encrypted"
     # wipe, then restore with a wrong and the right password
     pg.evaluate("localStorage.clear()"); pg.reload()
     pg.set_input_files("#file", str(f))
