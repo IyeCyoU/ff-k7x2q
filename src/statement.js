@@ -117,6 +117,26 @@ function applyStatementImport(p, plan) {
   S.stmt.sort((a, b) => a.date < b.date ? -1 : a.date > b.date ? 1 : order.get(a.id) - order.get(b.id));
   S.stmtFiles.push({file: p.file, from: p.period.from, to: p.period.to, added: add.length, skipped: plan.dupes.length + plan.inWb.length, closing: p.closing, at: new Date().toISOString()});
 }
+/* Where do the app and the bank first disagree? Compare the app's bank balance with the bank's own closing
+   balance at the end of every day a statement covers. */
+function bankDrift() {
+  if (!S.stmt.length) return null;
+  const all = [...S.tx.map(t => ({date: t.date, amt: t.amt})), ...S.stmt.map(t => ({date: t.date, amt: t.amt}))].sort((a, b) => a.date < b.date ? -1 : a.date > b.date ? 1 : 0);
+  const dayEnd = {}; for (const t of S.stmt) dayEnd[t.date] = t.bal;   // statement rows are in bank order, so the last one wins
+  let cum = 0, k = 0;
+  const days = Object.keys(dayEnd).sort();
+  for (const d of days) {
+    while (k < all.length && all[k].date <= d) cum = r2(cum + all[k++].amt);
+    const diff = r2(cum - dayEnd[d]);
+    if (Math.abs(diff) > S.cfg.tol) return {date: d, diff, first: d === days[0], app: cum, bank: dayEnd[d], wbLast: S.tx.reduce((m, t) => t.date > m ? t.date : m, '')};
+  }
+  return null;
+}
+function driftText() {
+  const d = bankDrift(); if (!d) return '';
+  if (d.first) return 'The difference is already there on ' + dFull(d.date) + ', the first day your statements cover: the app has ' + inr2(d.app) + ', the bank ' + inr2(d.bank) + '. So it comes from your Excel history before that day' + (d.wbLast ? ' (which runs to ' + dFull(d.wbLast) + ')' : '') + ': a missing month, a row that is wrong, or rows of the statement period that are also in the Excel file.';
+  return 'The app and the bank agree until ' + dFull(d.date) + ', when they start to differ by ' + inr2(d.diff) + '. Check the rows of that day and the statement covering it.';
+}
 function bankStatementBalance() {
   if (S.stmt && S.stmt.length) { const t = S.stmt[S.stmt.length - 1]; return {bal: t.bal, date: t.date, src: 'statement'}; }
   return S.meta && S.meta.statementBalance != null ? {bal: S.meta.statementBalance, src: 'workbook'} : null;

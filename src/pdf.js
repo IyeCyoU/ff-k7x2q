@@ -42,7 +42,7 @@ function makeReportPDF(d) {
     ['RECEIVED THIS MONTH', rs(recv), req > 0 ? 'of ' + rs(req) + ' due (' + pct(recv / req, 0) + ')' : 'no target this month', recv + tol >= req ? 'pos' : 'warn'],
     ['OUTSTANDING TO DATE', rs(tt.out), behind ? behind + ' of 4 brothers behind' : 'nobody behind', tt.out > tol ? 'neg' : 'pos'],
     ['HOUSEHOLD FUND', rs(d.H.close), 'closing balance', d.H.close < -tol ? 'neg' : 'pos'],
-    ['FAMILY FUND POSITION', rs(d.fam), 'bank + cash in hand', d.fam < 0 ? 'neg' : 'info']
+    ['FAMILY FUND POSITION', rs(d.fam), Math.abs(d.held) > S.cfg.tol ? 'bank + cash, less ' + rs(d.held) + ' held for others' : 'bank + cash in hand', d.fam < 0 ? 'neg' : 'info']
   ];
   const tw = (cw - 12) / 4;
   tiles.forEach((t, i) => {

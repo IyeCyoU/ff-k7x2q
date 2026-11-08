@@ -326,3 +326,4 @@ table.t{width:100%;border-collapse:separate;border-spacing:0;font-size:13.5px}
   .rv-part{grid-template-columns:1fr 1fr;padding:8px;border:1px solid var(--line);border-radius:10px}
   .rv-part .rp-amt{grid-column:1}
 }
+.eq .r.held{opacity:.75;font-size:.92em;border-top:1px dashed rgba(255,255,255,.25)}
