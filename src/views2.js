@@ -181,7 +181,7 @@ function txTableHTML() {
   const vis = rows.slice(UI.txpage * pg, UI.txpage * pg + pg);
   const tin = sum(rows.filter(e => e.amt > 0), e => e.amt), tout = sum(rows.filter(e => e.amt < 0), e => e.amt);
   const t = tbl([
-    {h: 'Date', k: 'date', f: e => dFull(e.date)}, {h: 'Source', k: 'src', f: e => pill(e.src, e.src === 'Cash' ? 'warn' : '')}, {h: 'Person', k: 'person', f: e => esc(e.person || '')}, {h: 'Purpose (original)', k: 'purpose', f: e => esc(e.purpose)},
+    {h: 'Date', k: 'date', f: e => dFull(e.date)}, {h: 'Source', k: 'src', f: e => pill(e.manual ? 'By hand' : e.src, e.src === 'Cash' ? 'warn' : e.manual ? 'info' : '') + (e.stmt && !e.reviewed ? '<br>' + pill('Not reviewed', 'warn') : '')}, {h: 'Person', k: 'person', f: e => esc(e.person || '')}, {h: 'Purpose (original)', k: 'purpose', f: e => esc(e.purpose)},
     {h: 'Treated as', k: 'kind', f: e => esc(KIND_LABEL[e.kind]) + (e.treat ? '<br><span class="small">' + esc(e.treat) + '</span>' : '') + (e.memo ? '<br><span class="small">memo only</span>' : '')}, {h: 'Category', k: 'cat', f: e => {
       if (e.src !== 'Bank' || e.atm || e.splitIdx || !['hhx', 'med', 'spx', 'chg'].includes(e.kind)) return e.cat ? (e.cat === 'Uncategorised' ? '<span class="mute">Uncategorised</span>' : esc(e.cat)) : '';
       return qSelect('qcat', e.id, Object.keys(S.cfg.categories), (S.overlay[e.id] || {}).cat || '', e.cat);

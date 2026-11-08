@@ -49,6 +49,9 @@ To try it without real data, generate a synthetic workbook and two made-up bank 
 2. In the app, **To review → Import bank statement** and choose the file. The import shows the period, how many rows are new, and whether the statement continues from the balance already in the app. Overlapping statements are fine: rows already imported are skipped.
 3. On **To review**, check each row's suggested *who* and *what for* and tap **Approve**. Use **Split** when one payment covers several brothers or purposes. Choose **Outside the family fund** for money that only passes through (a third party, a donation, another debt).
 4. Money a brother spent himself, in cash or from his own account, goes in **Cash ledger → Add → Paid directly by a brother**.
+5. A transaction that is not in a statement yet: **To review → Add transaction by hand**. When the statement that has it is imported, the app recognises it and keeps your choices.
+
+To rebuild the history properly instead of using an Excel file, download past statements from net banking (back to when the account opened) and import them month by month. **Setup → Remove Excel history** clears the workbook rows first, if you had imported one.
 
 Your earlier Excel history stays as it is; statement rows that are already in it are recognised and skipped.
 
