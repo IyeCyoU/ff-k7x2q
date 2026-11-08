@@ -14,7 +14,8 @@ MAY = ROOT / "sample-data" / "sample-statement-2026-05.xlsx"
 
 @pytest.fixture(scope="session", autouse=True)
 def statements(built):
-    subprocess.run([sys.executable, str(ROOT / "sample-data" / "make_statement.py")], check=True, stdout=subprocess.DEVNULL)
+    if not (APRIL.exists() and MAY.exists()):   # committed; regenerate only when missing
+        subprocess.run([sys.executable, str(ROOT / "sample-data" / "make_statement.py")], check=True, stdout=subprocess.DEVNULL)
 
 
 def js(page, expr, arg=None):

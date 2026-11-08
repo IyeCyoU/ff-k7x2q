@@ -14,7 +14,8 @@ APP = ROOT / "dist" / "index.html"
 @pytest.fixture(scope="session", autouse=True)
 def built():
     subprocess.run([sys.executable, str(ROOT / "build.py")], check=True)
-    subprocess.run([sys.executable, str(ROOT / "sample-data" / "make_sample.py")], check=True)
+    if not SAMPLE.exists():   # committed; regenerate only when missing so test runs leave no changes behind
+        subprocess.run([sys.executable, str(ROOT / "sample-data" / "make_sample.py")], check=True)
 
 
 @pytest.fixture(scope="session")
