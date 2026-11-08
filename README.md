@@ -41,7 +41,16 @@ All screenshots use the synthetic workbook in `sample-data/`, not real figures.
    - Deposits are positive, withdrawals negative. A totals row is skipped. A cell next to the text `Bank Statement Balance` in the first rows is used for reconciliation.
 3. Review the import summary and confirm.
 
-To try it without real data, generate a synthetic workbook: `python sample-data/make_sample.py`.
+To try it without real data, generate a synthetic workbook and two made-up bank statements: `python sample-data/make_sample.py && python sample-data/make_statement.py`.
+
+## Monthly routine: import the bank statement
+
+1. In HDFC net banking, download the account statement as **Excel** (.xls or .xlsx), usually one month at a time.
+2. In the app, **To review → Import bank statement** and choose the file. The import shows the period, how many rows are new, and whether the statement continues from the balance already in the app. Overlapping statements are fine: rows already imported are skipped.
+3. On **To review**, check each row's suggested *who* and *what for* and tap **Approve**. Use **Split** when one payment covers several brothers or purposes. Choose **Outside the family fund** for money that only passes through (a third party, a donation, another debt).
+4. Money a brother spent himself, in cash or from his own account, goes in **Cash ledger → Add → Paid directly by a brother**.
+
+Your earlier Excel history stays as it is; statement rows that are already in it are recognised and skipped.
 
 ## Install on a phone, use offline
 
@@ -84,6 +93,7 @@ src/
   views2.js     household, investments, housing goal, monthly report, transactions
   views3.js     cash ledger, controls, setup, edit dialogs
   pdf.js        PDF report
+  statement.js  bank statement import, review, splits, money outside the family fund
   main.js       navigation, events, import, sorting, backup (optionally encrypted)
   pwa.js        offline support registration and the "new version" prompt
   sw.js         offline cache (build.py fills in the version and file list)

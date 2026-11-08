@@ -303,3 +303,26 @@ table.t{width:100%;border-collapse:separate;border-spacing:0;font-size:13.5px}
 /* A notification never blocks taps on what is under it; only its own button is tappable. */
 .toast{pointer-events:none}
 .toast button{pointer-events:auto}
+
+/* ===== To review: bank rows waiting for approval ===== */
+.rv-list{display:grid;gap:10px}
+.rv-row{display:grid;grid-template-columns:minmax(0,1.2fr) minmax(0,1fr);gap:14px;align-items:center;border:1px solid var(--line);border-radius:12px;padding:12px 14px;background:var(--surface)}
+.rv-top{display:flex;justify-content:space-between;gap:10px;align-items:baseline}
+.rv-top b{font-size:15px;font-variant-numeric:tabular-nums}
+.rv-payee{font-weight:600;margin:2px 0}
+.rv-desc{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.rv-pick{display:flex;flex-wrap:wrap;gap:6px;align-items:center;justify-content:flex-end}
+.rv-pick select,.rv-part select,.rv-part input{background:var(--surface);color:var(--ink);border:1px solid var(--line);border-radius:8px;padding:7px 8px;font:inherit;font-size:13.5px;min-width:0;max-width:100%}
+.rv-pick select[hidden],.rv-part [hidden]{display:none}
+.rv-btns{display:flex;gap:6px}
+.rv-part{display:grid;grid-template-columns:1fr 1.3fr 1fr 1fr 110px auto;gap:6px;margin-bottom:6px;align-items:center}
+.rv-part .rp-amt{text-align:right}
+.modal.wide{width:min(920px,100%)}
+@media (max-width:760px){
+  .rv-row{grid-template-columns:minmax(0,1fr)}
+  .rv-pick{justify-content:stretch}
+  .rv-pick select{flex:1 1 140px}
+  .rv-btns{flex:1 1 100%;justify-content:flex-end}
+  .rv-part{grid-template-columns:1fr 1fr;padding:8px;border:1px solid var(--line);border-radius:10px}
+  .rv-part .rp-amt{grid-column:1}
+}

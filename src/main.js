@@ -1,12 +1,12 @@
 'use strict';
 /* ============ routing & render ============ */
-const TABS = [['overview', 'Overview'], ['contributions', 'Contributions'], ['household', 'Household'], ['investments', 'Investments'], ['goal', 'Housing goal'], ['report', 'Monthly report'], ['transactions', 'Transactions'], ['cash', 'Cash ledger'], ['controls', 'Controls'], ['setup', 'Setup']];
-const VIEWS = {overview: vOverview, contributions: vContrib, household: vHousehold, investments: vInvest, goal: vGoal, report: vReport, transactions: vTx, cash: vCash, controls: vControls, setup: vSetup};
+const TABS = [['overview', 'Overview'], ['contributions', 'Contributions'], ['household', 'Household'], ['investments', 'Investments'], ['goal', 'Housing goal'], ['report', 'Monthly report'], ['review', 'To review'], ['transactions', 'Transactions'], ['cash', 'Cash ledger'], ['controls', 'Controls'], ['setup', 'Setup']];
+const VIEWS = {overview: vOverview, contributions: vContrib, household: vHousehold, investments: vInvest, goal: vGoal, report: vReport, review: vReview, transactions: vTx, cash: vCash, controls: vControls, setup: vSetup};
 
 function emptyState() {
   return '<div class="vh"><h1>Family Fund</h1></div><div class="empty" id="drop"><svg class="ill" viewBox="0 0 160 110" aria-hidden="true"><rect x="8" y="88" width="144" height="4" rx="2" fill="var(--line)"/><path d="M34 52 80 16l46 36" fill="none" stroke="var(--accent)" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"/><path d="M44 48v40h72V48" fill="var(--surface2)" stroke="var(--accent)" stroke-width="4" stroke-linejoin="round"/><rect x="70" y="64" width="20" height="24" rx="3" fill="var(--accent)"/><rect x="50" y="58" width="9" height="30" rx="2" fill="var(--c3)"/><rect x="101" y="52" width="9" height="36" rx="2" fill="var(--c2)"/></svg><h2>Import your contribution workbook</h2><p>Choose the Excel file with your Transactions sheet. It is read on this device and never uploaded. Your plan, categories, cash entries and notes are kept separately, so a fresh copy can be imported every month.</p><div class="steps"><span>1. Choose the .xlsx</span><span>2. Review the import</span><span>3. See the dashboard</span></div><button class="btn primary" data-act="pickFile">Choose workbook (.xlsx)</button><p class="small" style="margin-top:16px">or drop the file anywhere on this card</p></div>';
 }
-const NAVG = [['Dashboard', ['overview', 'contributions', 'household', 'investments', 'goal']], ['Reports and records', ['report', 'transactions', 'cash']], ['Admin', ['controls', 'setup']]];
+const NAVG = [['Dashboard', ['overview', 'contributions', 'household', 'investments', 'goal']], ['Reports and records', ['review', 'report', 'transactions', 'cash']], ['Admin', ['controls', 'setup']]];
 const ICONS = {
   overview: '<path d="M3.5 11.5 12 4l8.5 7.5"/><path d="M5.5 10v9a1 1 0 0 0 1 1H10v-5h4v5h3.5a1 1 0 0 0 1-1v-9"/>',
   contributions: '<circle cx="9" cy="8" r="3.2"/><path d="M3 19c0-3.2 2.7-5.4 6-5.4s6 2.2 6 5.4"/><path d="M16 5.2a3 3 0 0 1 0 5.6M18.5 14.4c1.6.7 2.5 2.2 2.5 4.6"/>',
@@ -15,6 +15,7 @@ const ICONS = {
   goal: '<circle cx="12" cy="12" r="8.5"/><circle cx="12" cy="12" r="4.5"/><circle cx="12" cy="12" r="1"/>',
   report: '<path d="M7 3.5h7l4 4V20a.5.5 0 0 1-.5.5H7a.5.5 0 0 1-.5-.5V4a.5.5 0 0 1 .5-.5z"/><path d="M14 3.5v4h4M9 12h6M9 15.5h6"/>',
   transactions: '<path d="M8 6h12M8 12h12M8 18h12"/><circle cx="4" cy="6" r=".9"/><circle cx="4" cy="12" r=".9"/><circle cx="4" cy="18" r=".9"/>',
+  review: '<path d="M9 11l3 3L21 5"/><path d="M20 12v7a1.5 1.5 0 0 1-1.5 1.5h-13A1.5 1.5 0 0 1 4 19V5.5A1.5 1.5 0 0 1 5.5 4H15"/>',
   cash: '<rect x="3" y="6.5" width="18" height="11" rx="2"/><circle cx="12" cy="12" r="2.6"/><path d="M6.5 9.5v5M17.5 9.5v5"/>',
   controls: '<path d="M12 3.5 19 6v5.5c0 4.2-2.9 7.6-7 9-4.1-1.4-7-4.8-7-9V6z"/><path d="m9 12 2.2 2.2L15.5 10"/>',
   setup: '<path d="M4 7h9M17 7h3M4 17h3M11 17h9"/><circle cx="15" cy="7" r="2"/><circle cx="9" cy="17" r="2"/>'
@@ -23,8 +24,8 @@ const TABNAME = Object.fromEntries(TABS);
 const BOTTOM_PRIMARY = ['overview', 'contributions', 'report', 'transactions'];
 function renderNav() {
   const bn0 = $('#brandNames'); if (bn0) bn0.textContent = S.cfg.brothers.join(' · ');
-  const open = R.exceptions.filter(e => !e.ack && e.sev !== 'Low').length;
-  $('#nav').innerHTML = NAVG.map(([g, ks]) => '<div class="grp">' + g + '</div>' + ks.map(k => '<button data-act="goto" data-arg="' + k + '"' + (UI.tab === k ? ' aria-current="page"' : '') + '><svg viewBox="0 0 24 24" aria-hidden="true">' + ICONS[k] + '</svg>' + TABNAME[k] + (k === 'controls' && open ? '<span class="badge">' + open + '</span>' : '') + '</button>').join('')).join('');
+  const open = R.exceptions.filter(e => !e.ack && e.sev !== 'Low').length, todo = S.stmt.filter(t => !S.review[t.id]).length;
+  $('#nav').innerHTML = NAVG.map(([g, ks]) => '<div class="grp">' + g + '</div>' + ks.map(k => '<button data-act="goto" data-arg="' + k + '"' + (UI.tab === k ? ' aria-current="page"' : '') + '><svg viewBox="0 0 24 24" aria-hidden="true">' + ICONS[k] + '</svg>' + TABNAME[k] + (k === 'controls' && open ? '<span class="badge">' + open + '</span>' : '') + (k === 'review' && todo ? '<span class="badge">' + todo + '</span>' : '') + '</button>').join('')).join('');
   const bn = $('#bottomnav'); if (!bn) return;
   const more = !BOTTOM_PRIMARY.includes(UI.tab);
   bn.innerHTML = BOTTOM_PRIMARY.map(k => '<button data-act="goto" data-arg="' + k + '"' + (UI.tab === k ? ' aria-current="page"' : '') + '><svg viewBox="0 0 24 24" aria-hidden="true">' + ICONS[k] + '</svg>' + TABNAME[k] + '</button>').join('') +
@@ -158,6 +159,8 @@ async function handleFile(file) {
   try {
     const buf = await file.arrayBuffer();
     if (/\.json$/i.test(file.name)) return restoreBackup(new TextDecoder().decode(buf));
+    const st = parseBankStatement(buf, file.name);   // the bank's own statement, or else your workbook
+    if (st) return statementImportDialog(st);
     const p = parseWorkbook(buf, file.name);
     const prev = new Set(S.tx.map(t => t.id)), now = new Set(p.tx.map(t => t.id));
     const added = p.tx.filter(t => !prev.has(t.id)).length, removed = S.tx.filter(t => !now.has(t.id)).length, kept = p.tx.length - added;
@@ -297,12 +300,13 @@ const ACT = {
     if (!validISO(g('#cf-date'))) errs.push('Enter a valid date.');
     if (!(amt > 0)) errs.push('Enter an amount greater than zero.');
     if (dir === 'Receipt' && !isBro(g('#cf-person'))) errs.push('Choose which brother the cash came from.');
-    if (dir === 'Payment' && cls !== 'Investment' && !g('#cf-cat')) errs.push('Choose a category.');
+    if (dir === 'Direct' && !isBro(g('#cf-person'))) errs.push('Choose which brother paid.');
+    if ((dir === 'Payment' || dir === 'Direct') && cls !== 'Investment' && !g('#cf-cat')) errs.push('Choose a category.');
     if (!g('#cf-desc').trim()) errs.push('Add a short description so the entry can be explained later.');
-    const acct = g('#cf-acct') === 'Cash' ? 'Cash' : ACCOUNTS[1];
+    const acct = dir === 'Direct' ? 'Direct' : g('#cf-acct') === 'Cash' ? 'Cash' : ACCOUNTS[1];
     if (errs.length) { msg.style.display = ''; msg.className = 'callout neg'; msg.innerHTML = errs.map(esc).join('<br>'); return; }
-    if (acct === 'Cash' && g('#cf-mode') !== 'Cash') warns.push('The payment mode is ' + g('#cf-mode') + ', which normally shows in the bank statement. Change the mode to Cash if this was real cash.');
-    const entry = {id: id || uid(), date: g('#cf-date'), dir, by: g('#cf-by'), person: g('#cf-person'), mode: g('#cf-mode'), acct, cls, cat: dir === 'Payment' && cls !== 'Investment' ? g('#cf-cat') : '', sub: g('#cf-sub'), med: cls === 'Medical' ? g('#cf-med') : '', src: dir === 'Payment' ? g('#cf-src') : 'Cash in hand', desc: g('#cf-desc').trim(), amt: r2(amt), ref: g('#cf-ref').trim(), note: g('#cf-note').trim()};
+    if (acct === 'Cash' && dir !== 'Direct' && g('#cf-mode') !== 'Cash') warns.push('The payment mode is ' + g('#cf-mode') + ', which normally shows in the bank statement. Change the mode to Cash if this was real cash.');
+    const entry = {id: id || uid(), date: g('#cf-date'), dir, by: dir === 'Direct' ? g('#cf-person') : g('#cf-by'), person: g('#cf-person'), mode: g('#cf-mode'), acct, cls, cat: dir !== 'Receipt' && cls !== 'Investment' ? g('#cf-cat') : '', sub: g('#cf-sub'), med: cls === 'Medical' ? g('#cf-med') : '', src: dir === 'Payment' ? g('#cf-src') : 'Cash in hand', desc: g('#cf-desc').trim(), amt: r2(amt), ref: g('#cf-ref').trim(), note: g('#cf-note').trim()};
     if (!/^ATM/i.test(entry.src)) { const dup = possibleBankDup(entry); if (dup.length) warns.push('A bank row of the same amount exists on ' + dFull(dup[0].date) + ' (' + dup[0].person + '). If this is the same money, do not add it here.'); }
     if (warns.length && !el.dataset.ok) { msg.style.display = ''; msg.className = 'callout warn'; msg.innerHTML = warns.map(esc).join('<br>') + '<br><b>Click Save again to keep it anyway.</b>'; el.dataset.ok = '1'; return; }
     const i = S.cash.findIndex(c => c.id === entry.id); if (i >= 0) S.cash[i] = entry; else S.cash.push(entry);
@@ -328,9 +332,11 @@ const ACT = {
     '<p class="small">The app then restarts as if opened for the first time, so Setup shows its starting values again (the brothers\' names, ₹10,000 plan lines and the default categories) until you change them.</p>',
     'Erase everything', eraseAll, true)
 };
+Object.assign(ACT, STMT_ACTIONS);
 ACT.editTx = el => {
   const e = R.byId[el.dataset.arg]; if (!e) return;
-  if (e.src === 'Cash') { ACT.editCash({dataset: {arg: e.id}}); return; }
+  if (e.src === 'Cash') { ACT.editCash({dataset: {arg: e.cashEntry ? e.cashEntry.id : e.id}}); return; }
+  if (e.stmt) { reviewDialog(e.parentId || e.id); return; }
   openModal(txModal(e.parentId || e.id)); splitRem();
 };
 function splitRem() {
@@ -365,6 +371,7 @@ function normaliseNum(ev) { const el = ev.target; if (!el || !el.matches || !el.
 document.addEventListener('keydown', ev => { if (ev.key === 'Enter') normaliseNum(ev); }, true);
 document.addEventListener('change', ev => {
   const t = ev.target;
+  if (stmtChange(t)) return;
   if (t.id === 'file') { const f = t.files[0]; t.value = ''; handleFile(f); return; }
   if (t.dataset.qcat !== undefined || t.dataset.qmode !== undefined) {
     const id = t.dataset.qcat !== undefined ? t.dataset.qcat : t.dataset.qmode, key = t.dataset.qcat !== undefined ? 'cat' : 'mode';
@@ -406,6 +413,7 @@ document.addEventListener('change', ev => {
 });
 let sT;
 document.addEventListener('input', ev => {
+  if (ev.target.classList && ev.target.classList.contains('rp-amt')) rpRemaining();
   if (ev.target.classList && ev.target.classList.contains('sp-amt')) { splitRem(); const m = $('#tx-msg'); if (m) m.style.display = 'none'; }
   if (ev.target.id === 'txq') { UI.txq = ev.target.value; UI.txpage = 0; clearTimeout(sT); sT = setTimeout(() => { $('#txBody').innerHTML = txTableHTML(); }, 180); }
 });
