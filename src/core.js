@@ -1,9 +1,18 @@
 'use strict';
 /* ============ constants & helpers ============ */
 const KEY = 'fbfund.v1';
-const SEEN_KEY = 'fbfund.seenVersion';   // which version's "what's new" this browser has shown
+const SEEN_KEY = 'fbfund.seenVersion';
+const FUNDS = ['H', 'I', 'S', 'M', 'O', 'X'];   // household, investment, special, medical, outside the family fund, unclassified
+// money that passes through the account but is not the family's: it comes in and goes out again
+const OUTSIDE_REASONS = ['Payable to a third party', 'Donation / charity', 'Other debt', 'Not part of the family fund'];   // which version's "what's new" this browser has shown
 const APP_VERSION = '__APP_VERSION__';   // filled in by build.py from VERSION
 const WHATS_NEW = {   // shown once after an update; newest first
+  '1.3.0': ['Import the bank statement straight from HDFC net banking (Excel). No separate spreadsheet needed.',
+            'New "To review" page: approve who each bank row belongs to and what it was for. Nothing counts until you approve it.',
+            'Split one bank row across brothers and purposes, e.g. a deposit that is partly another brother\'s share or money owed to someone else.',
+            '"Outside the family fund" for money that comes in and goes out for others: donations, charity, other debts, third parties.',
+            'Cash ledger: "Paid directly by a brother" counts as his contribution and the family\'s expense together.',
+            'Overlapping statements add only new rows; a missing statement or a balance that does not add up is flagged.'],
   '1.2.1': ['Erase everything now removes all saved data and restarts the app fresh.',
             'The version is shown in the sidebar and in Setup, and this note appears after each update.'],
   '1.2.0': ['Add to your Home Screen: it opens without internet, and tells you when a new version is ready.',
@@ -97,6 +106,9 @@ const validISO = s => /^\d{4}-\d{2}-\d{2}$/.test(s || '') && !isNaN(new Date(s +
 function defaults() {
   return {
     v: 1, tx: [], bad: [], meta: null, overlay: {}, cash: [], ack: {},
+    stmt: [],        // rows read from bank statements, exactly as the bank gave them
+    review: {},      // your decision for each statement row: who and what, possibly split into parts
+    stmtFiles: [],   // which statements were imported, for the import history
     cfg: {
       // Placeholder names that match the sample workbook. Set your family's real names in Setup → Family
       // members; they are saved in this browser only, never in this code or on the website.

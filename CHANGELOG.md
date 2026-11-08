@@ -1,5 +1,13 @@
 # Changelog
 
+## 1.3.0
+- **Import the bank's own statement** (HDFC net banking Excel, .xls or .xlsx). The running balance and the bank's own summary are checked; rows already imported, or already in your Excel history, are skipped; a statement that does not continue from the app's balance (a missing month) is flagged.
+- **To review**: every bank row waits for your approval of *who* and *what for*. Suggestions come from your history, brothers' names and the narration's remark ("MONTHLY EXPENSES", "INVESTMENT", "LOAN REPAYMENT"…). Until approved a row is in the bank balance but in no brother's contribution and no fund.
+- **Split** one bank row into parts, each with its own brother, purpose, category and amount; the parts must add up.
+- **Outside the family fund**: money that passes through for others (payable to a third party, donation / charity, other debt). Shown as money held for others until it goes out again.
+- **Paid directly by a brother** in the cash ledger: his contribution and the expense at once; the family's cash and bank do not change.
+- The bank balance check uses the latest statement's closing balance automatically.
+
 ## 1.2.1
 - **Erase everything** removes everything the app saved in the browser and restarts it fresh. It used to reset the data but leave the page's searches and filters behind, and did not say that Setup returns to its starting values.
 - **Setup → Family members**: set the brothers' names, the person who spends and the bank labels. Renaming updates plan lines and cash entries.

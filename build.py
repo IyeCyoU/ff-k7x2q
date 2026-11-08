@@ -14,7 +14,7 @@ import base64, hashlib, json, os, pathlib, shutil, subprocess, sys, urllib.reque
 ROOT = pathlib.Path(__file__).parent
 SRC = ROOT / "src"
 OUT = ROOT / "dist"
-ORDER = ["fontdata.js", "core.js", "engine.js", "charts.js", "views1.js", "views2.js", "views3.js", "pdf.js", "main.js", "pwa.js"]
+ORDER = ["fontdata.js", "core.js", "engine.js", "charts.js", "views1.js", "views2.js", "views3.js", "pdf.js", "statement.js", "main.js", "pwa.js"]
 LIBS = {  # file: (npm path, CDN url, sha256)
     "xlsx.full.min.js": ("xlsx/dist/xlsx.full.min.js", "https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js",
                          "c9506197caf809a075b6dee1da0d36fb19da7158ffe8a88e7b0c96c5d8623c99"),

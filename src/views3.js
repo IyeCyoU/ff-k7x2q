@@ -9,14 +9,14 @@ function vCash() {
   const last = R.N - 1, tol = S.cfg.tol;
   const real = R.led.filter(e => e.src === 'Cash' && !e.memo && e.acct === 'Cash');
   const rec = sum(real.filter(e => e.amt > 0), e => e.amt), paid = -sum(real.filter(e => e.amt < 0), e => e.amt);
-  const at = atmStats(), pend = S.cash.filter(c => c.acct !== 'Cash');
+  const at = atmStats(), pend = S.cash.filter(c => c.acct !== 'Cash' && c.dir !== 'Direct');
   const kp = '<div class="kgrid mb">' +
     kpi('Cash in hand', inr2(last >= 0 ? R.cashCum[last] : 0), 'Received − paid, brother cash only', (last >= 0 && R.cashCum[last] < -tol) ? 'neg' : '') +
     kpi('Cash received from brothers', inr(rec), real.filter(e => e.amt > 0).length + ' entries') + kpi('Cash paid out', inr(paid), real.filter(e => e.amt < 0).length + ' entries') +
     kpi('ATM cash itemised', inr(at.memo) + ' <span class="small">of ' + inr(at.tot) + '</span>', at.left > tol ? inr(at.left) + ' still to explain' : 'Fully explained', at.left > tol ? 'warn' : 'pos') + '</div>';
   const sorted = S.cash.slice().sort((a, b) => a.date < b.date ? 1 : -1);
   const list = tbl([
-    {h: 'Date', f: c => validISO(c.date) ? dFull(c.date) : '<span class="tone-neg">Invalid</span>'}, {h: 'Direction', f: c => pill(c.dir === 'Receipt' ? 'Cash in' : /^ATM/i.test(c.src || '') ? 'ATM cash spent' : 'Cash out', c.dir === 'Receipt' ? 'pos' : /^ATM/i.test(c.src || '') ? 'info' : 'warn')},
+    {h: 'Date', f: c => validISO(c.date) ? dFull(c.date) : '<span class="tone-neg">Invalid</span>'}, {h: 'Direction', f: c => c.dir === 'Direct' ? pill('Paid by ' + (c.person || 'a brother'), 'info') : pill(c.dir === 'Receipt' ? 'Cash in' : /^ATM/i.test(c.src || '') ? 'ATM cash spent' : 'Cash out', c.dir === 'Receipt' ? 'pos' : /^ATM/i.test(c.src || '') ? 'info' : 'warn')},
     {h: 'By / person', f: c => esc(c.by) + (c.person ? '<br><span class="small">' + esc(c.person) + '</span>' : '')}, {h: 'Class', f: c => esc(c.cls) + (c.cat ? '<br><span class="small">' + esc(c.cat + (c.sub ? ' / ' + c.sub : '')) + '</span>' : '')},
     {h: 'Mode / account', f: c => esc(c.mode) + '<br><span class="small">' + esc(c.acct) + '</span>'}, {h: 'Amount', cls: 'num', f: c => '<td class="num ' + (c.dir === 'Receipt' ? 'pos' : 'neg') + '">' + inr2(c.dir === 'Receipt' ? c.amt : -c.amt) + '</td>'},
     {h: 'Description', cls: 'desc', f: c => esc(c.desc) + (c.ref ? '<br>Ref: ' + esc(c.ref) : '') + (c.note ? '<br><i>' + esc(c.note) + '</i>' : '')},
@@ -32,7 +32,7 @@ function cashModal(id) {
   const people = S.cfg.people;
   return '<div class="modal-bg" data-modal><div class="modal" role="dialog" aria-modal="true" aria-labelledby="cm-t"><h2 id="cm-t">' + (c ? 'Edit' : 'Add') + ' cash entry</h2><div class="formgrid">' +
     '<div class="field"><label for="cf-date">Transaction date</label><input id="cf-date" type="date" value="' + esc(d.date) + '"></div>' +
-    '<div class="field"><label for="cf-dir">What happened</label><select id="cf-dir"><option value="Receipt"' + (d.dir === 'Receipt' ? ' selected' : '') + '>Cash received from a brother</option><option value="Payment"' + (d.dir === 'Payment' ? ' selected' : '') + '>Cash paid out</option></select></div>' +
+    '<div class="field"><label for="cf-dir">What happened</label><select id="cf-dir"><option value="Receipt"' + (d.dir === 'Receipt' ? ' selected' : '') + '>Cash received from a brother</option><option value="Payment"' + (d.dir === 'Payment' ? ' selected' : '') + '>Cash paid out</option><option value="Direct"' + (d.dir === 'Direct' ? ' selected' : '') + '>Paid directly by a brother (not from the family\'s cash or bank)</option></select></div>' +
     '<div class="field"><label for="cf-amt">Amount (₹)</label><input id="cf-amt" type="text" inputmode="decimal" autocomplete="off" data-num step="0.01" min="0" value="' + esc(d.amt) + '"></div>' +
     '<div class="field"><label for="cf-by" id="cf-by-l">Paid / received by</label><select id="cf-by">' + O(people, d.by) + '</select></div>' +
     '<div class="field"><label for="cf-person" id="cf-person-l">Brother / person</label><select id="cf-person"><option value="">—</option>' + O([...S.cfg.brothers, S.cfg.spender, 'Other'], d.person) + '</select></div>' +
@@ -43,6 +43,7 @@ function cashModal(id) {
     '<div class="field" id="cf-cat-w"><label for="cf-cat">Category</label><select id="cf-cat"><option value="">Choose…</option>' + O(Object.keys(S.cfg.categories), d.cat) + '</select></div>' +
     '<div class="field" id="cf-sub-w"><label for="cf-sub">Subcategory</label><select id="cf-sub"><option value="">—</option></select></div>' +
     '<div class="field" id="cf-med-w"><label for="cf-med">Medical treatment</label><select id="cf-med">' + O(MEDTREAT, d.med || S.cfg.medicalDefault) + '</select></div>' +
+    '<div class="field span3" id="cf-direct-hint" style="display:none"><div class="callout">Counts as that brother\'s contribution and as the family\'s expense at the same time. The family\'s cash in hand and bank balance do not change.</div></div>' +
     '<div class="field span3"><label for="cf-desc">Description</label><input id="cf-desc" value="' + esc(d.desc) + '" placeholder="What was this for?"></div>' +
     '<div class="field span2"><label for="cf-ref">Supporting reference (bill no., photo name…)</label><input id="cf-ref" value="' + esc(d.ref) + '"></div>' +
     '<div class="field span3"><label for="cf-note">Notes</label><input id="cf-note" value="' + esc(d.note) + '"></div></div>' +
@@ -50,26 +51,30 @@ function cashModal(id) {
 }
 function cashModalSync() {
   const dir = $('#cf-dir').value, cls = $('#cf-cls').value;
+  const direct = dir === 'Direct', out = dir === 'Payment' || direct;
   $('#cf-by-l').textContent = dir === 'Receipt' ? 'Received by' : 'Paid by';
-  $('#cf-person-l').textContent = dir === 'Receipt' ? 'Received from (brother)' : 'Brother / person concerned';
+  $('#cf-person-l').textContent = dir === 'Receipt' ? 'Received from (brother)' : direct ? 'Which brother paid' : 'Brother / person concerned';
+  $('#cf-by').closest('.field').style.display = direct ? 'none' : '';
+  $('#cf-acct').closest('.field').style.display = direct ? 'none' : '';
   $('#cf-src-w').style.display = dir === 'Payment' ? '' : 'none';
-  const showCat = dir === 'Payment' && cls !== 'Investment';
+  const showCat = out && cls !== 'Investment';
   $('#cf-cat-w').style.display = showCat ? '' : 'none'; $('#cf-sub-w').style.display = showCat ? '' : 'none';
-  $('#cf-med-w').style.display = dir === 'Payment' && cls === 'Medical' ? '' : 'none';
-  if (dir === 'Payment' && cls === 'Medical' && !$('#cf-cat').value) $('#cf-cat').value = 'Medical';
+  $('#cf-med-w').style.display = out && cls === 'Medical' ? '' : 'none';
+  if (out && cls === 'Medical' && !$('#cf-cat').value) $('#cf-cat').value = 'Medical';
+  const hint = $('#cf-direct-hint'); if (hint) hint.style.display = direct ? '' : 'none';
   const cat = $('#cf-cat').value, subs = (S.cfg.categories[cat] || []), cur = $('#cf-sub').dataset.cur || $('#cf-sub').value;
   $('#cf-sub').innerHTML = '<option value="">—</option>' + subs.map(s => '<option' + (s === cur ? ' selected' : '') + '>' + esc(s) + '</option>').join('');
 }
 
 /* ============ CONTROLS ============ */
 function vControls() {
-  const tol = S.cfg.tol, last = R.N - 1, st = S.meta && S.meta.statementBalance;
+  const tol = S.cfg.tol, last = R.N - 1, sbx = bankStatementBalance(), st = sbx ? sbx.bal : null;
   const ck = R.checks;
   const ct = tbl([{h: 'Control', f: c => esc(c.name)}, {h: 'Expected', cls: 'num', f: c => c.exp == null ? '—' : (Math.abs(c.exp) <= 1 && c.name.includes('%') ? pct(c.exp) : inr2(c.exp))}, {h: 'Found', cls: 'num', f: c => c.act == null ? '—' : (c.name.includes('100%') ? pct(c.act) : inr2(c.act))}, {h: 'Difference', cls: 'num', f: c => c.diff == null ? '—' : mcell(c.diff, 2)}, {h: 'Status', f: c => pill(c.status, checkTone(c.status))}, {h: 'Note', cls: 'desc', f: c => esc(c.note)}], ck);
   const ok = ck.filter(c => c.status === 'Reconciled').length;
   const rows = R.months.map((m, i) => {
-    const b = R.bankBy[i], open = i ? R.bankCum[i - 1] : 0, comp = r2(open + b.add + b.exp + b.xfer + b.inv + b.oth), act = r2(R.bankCum[i]);
-    const funds = ['H', 'I', 'S', 'M', 'X'].reduce((a, f) => a + R.F[f][i].close, 0), diff = r2(funds - R.famCum[i]);
+    const b = R.bankBy[i], open = i ? R.bankCum[i - 1] : 0, comp = r2(open + b.add + b.exp + b.xfer + b.inv + b.ext + b.oth), act = r2(R.bankCum[i]);
+    const funds = FUNDS.reduce((a, f) => a + R.F[f][i].close, 0), diff = r2(funds - R.famCum[i]);
     let status = Math.abs(diff) > tol || Math.abs(comp - act) > tol ? 'Difference' : b.unclassified ? 'Missing Classification' : 'Reconciled';
     if (i === last && st != null && Math.abs(R.bankCum[i] - st) > tol) status = 'Difference';
     return {m, open, b, close: act, diff, status, stdiff: i === last && st != null ? r2(R.bankCum[i] - st) : null};

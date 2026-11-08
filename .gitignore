@@ -13,5 +13,6 @@ __pycache__/
 *.csv
 family-fund-backup-*.json
 !sample-data/sample-workbook.xlsx
+!sample-data/sample-statement-*.xlsx
 
 .DS_Store

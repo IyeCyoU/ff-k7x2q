@@ -30,6 +30,7 @@ function fundOf(kind, treat) {
     case 'hhc': case 'hhx': case 'rcpt': case 'chg': case 'xfer': return 'H';
     case 'invc': case 'invd': case 'invr': return 'I';
     case 'spc': case 'spx': return 'S';
+    case 'ext': return 'O';
     case 'med': return treat === 'Separate Family Medical' ? 'M' : treat === 'Special / Extraordinary' ? 'S' : 'H';
     default: return 'X';
   }
@@ -44,12 +45,13 @@ function classifyBank(t) {
   else if (P === 'Additional Expense') kind = a > 0 ? 'spc' : 'spx';
   else if (P === 'Medical Expense') kind = 'med';
   else if (P === 'Bank Charges') kind = a > 0 ? 'rcpt' : 'chg';
+  else if (P === 'Outside Fund') kind = 'ext';
   else { kind = 'oth'; flags.push('Missing classification'); }
-  const treat = kind === 'med' ? (ov.med || S.cfg.medicalDefault) : null;
+  const treat = kind === 'med' ? (t.med || ov.med || S.cfg.medicalDefault) : kind === 'ext' ? (t.reason || OUTSIDE_REASONS[3]) : null;
   const atm = /^atw/i.test(t.desc);
   let cat = '';
   if (kind === 'hhx' || kind === 'chg' || kind === 'med' || kind === 'spx') {
-    cat = ov.cat || (kind === 'med' ? 'Medical' : kind === 'chg' ? 'Bank Charges' : atm ? 'Cash withdrawn (ATM)' : ruleCat(t.desc) || 'Uncategorised');
+    cat = ov.cat || t.cat || (kind === 'med' ? 'Medical' : kind === 'chg' ? 'Bank Charges' : atm ? 'Cash withdrawn (ATM)' : ruleCat(t.desc) || 'Uncategorised');
   }
   const ttype = t.type === 'Internal Transfer' ? 'Internal Transfer' : a >= 0 ? 'Deposit' : 'Withdrawal';
   return {
@@ -109,7 +111,8 @@ function derive() {
     }
     led.push(e);
   }
-  for (const c of S.cash) if (validISO(c.date)) led.push(classifyCash(c));
+  S.stmt.forEach((t, n) => { for (const e of stmtEntries(t, n)) led.push(e); });
+  for (const c of S.cash) if (validISO(c.date)) { if (c.dir === 'Direct') led.push(...directEntries(c)); else led.push(classifyCash(c)); }
   led.sort((a, b) => a.date < b.date ? -1 : a.date > b.date ? 1 : (a.src === b.src ? (a.row || 0) - (b.row || 0) : a.src < b.src ? -1 : 1));
   const months = [];
   if (led.length) { let m = led[0].month; const last = led[led.length - 1].month; while (m <= last) { months.push(m); m = addMonths(m, 1); } }
@@ -120,9 +123,9 @@ function derive() {
 
   // flows per fund per month per kind
   const F = {};
-  ['H', 'I', 'S', 'M', 'X'].forEach(f => F[f] = months.map(() => ({})));
+  FUNDS.forEach(f => F[f] = months.map(() => ({})));
   const bankM = months.map(() => 0), cashM = months.map(() => 0), pendM = months.map(() => 0);
-  const bankBy = months.map(() => ({add: 0, exp: 0, xfer: 0, inv: 0, dep: 0, oth: 0, unclassified: 0}));
+  const bankBy = months.map(() => ({add: 0, exp: 0, xfer: 0, inv: 0, dep: 0, oth: 0, ext: 0, unclassified: 0}));
   for (const e of led) {
     const i = mi[e.month];
     if (e.fund) { const o = F[e.fund][i]; o[e.kind] = (o[e.kind] || 0) + e.amt; }
@@ -133,12 +136,13 @@ function derive() {
       else if (['hhx', 'chg', 'med', 'spx'].includes(e.kind)) bb.exp += e.amt;
       else if (e.kind === 'xfer') bb.xfer += e.amt;
       else if (['invd', 'invr'].includes(e.kind)) bb.inv += e.amt;
+      else if (e.kind === 'ext') bb.ext += e.amt;
       else { bb.oth += e.amt; bb.unclassified++; }
-    } else if (!e.memo) { if (e.acct === 'Cash') cashM[i] += e.amt; else pendM[i] += e.amt; }
+    } else if (!e.memo && !e.direct) { if (e.acct === 'Cash') cashM[i] += e.amt; else pendM[i] += e.amt; }
   }
   R.F = {};
   const line = (o, k) => o[k] || 0;
-  for (const f of ['H', 'I', 'S', 'M', 'X']) {
+  for (const f of FUNDS) {
     let bal = 0; R.F[f] = months.map((m, i) => {
       const o = F[f][i], open = bal;
       let x;
@@ -146,6 +150,7 @@ function derive() {
       else if (f === 'I') x = {contrib: line(o, 'invc'), deployed: -line(o, 'invd'), returned: -line(o, 'invr'), adj: 0};
       else if (f === 'S') x = {contrib: line(o, 'spc'), spend: -(line(o, 'spx') + line(o, 'med')), adj: 0};
       else if (f === 'M') x = {spend: -line(o, 'med')};
+      else if (f === 'O') x = {in: line(o, 'ext') > 0 ? line(o, 'ext') : 0, net: line(o, 'ext')};
       else x = {net: line(o, 'oth') + line(o, 'rcpt') * 0};
       const net = Object.values(o).reduce((a, b) => a + b, 0);
       bal = open + net;
@@ -297,6 +302,9 @@ function buildExceptions() {
   const add = (o) => { o.key = o.code + '|' + (o.sig || o.title); o.ack = S.ack[o.key] || null; out.push(o); };
   // invalid rows
   for (const b of S.bad) add({sev: 'High', code: 'Invalid date/amount', title: 'Row ' + b.row + ': ' + b.reason, detail: (b.desc || '').slice(0, 90) + ' | date "' + b.rawDate + '" amount "' + b.rawAmt + '"', ids: [], amount: b.amt || 0, count: 1, tab: 'transactions', sig: 'row' + b.row});
+  // bank statement rows nobody has reviewed yet: they count in the bank balance but in no fund
+  const nr = led.filter(e => e.flags.includes('Not reviewed'));
+  if (nr.length) add({sev: 'High', code: 'Not reviewed', title: nr.length + ' bank statement row(s) not reviewed yet (' + inr2(sum(nr, e => e.amt)) + ' net)', detail: 'They are in the bank balance but in no brother\'s contribution and no fund until you approve who and what each one is.', ids: nr.map(e => e.id), amount: sum(nr, e => e.amt), count: nr.length, tab: 'review', sig: 'review'});
   // missing brother
   const mb = led.filter(e => e.flags.includes('Missing brother'));
   if (mb.length) add({sev: 'High', code: 'Missing brother', title: mb.length + ' contribution row(s) without a brother', detail: 'Deposits tagged as contributions but depositor is not one of the four brothers.', ids: mb.map(e => e.id), amount: sum(mb, e => e.amt), count: mb.length, tab: 'transactions'});
@@ -345,7 +353,7 @@ function buildExceptions() {
   }
   if (R.N && R.cashCum[last] < -tol) add({sev: 'High', code: 'Negative fund balance', title: 'Cash in hand is negative (' + inr(R.cashCum[last]) + ')', detail: 'Cash payments recorded exceed cash received.', ids: [], amount: R.cashCum[last], count: 1, tab: 'cash', sig: 'cash'});
   // reconciliation
-  const st = S.meta && S.meta.statementBalance;
+  const sbx = bankStatementBalance(), st = sbx ? sbx.bal : null;
   if (R.N && st != null) { const diff = r2(R.bankCum[last] - st); if (Math.abs(diff) > tol) add({sev: 'High', code: 'Unreconciled amount', title: 'Ledger differs from statement balance by ' + inr2(diff), detail: 'Ledger ' + inr2(R.bankCum[last]) + ' vs statement ' + inr2(st) + '.', ids: [], amount: diff, count: 1, tab: 'controls', sig: 'stmt'}); }
   if (R.N && st == null) add({sev: 'Medium', code: 'Unreconciled amount', title: 'No statement balance to compare with', detail: 'Enter it under Setup so the ledger can be reconciled.', ids: [], amount: 0, count: 1, tab: 'setup', sig: 'nostmt'});
   for (const t of R.splitBroken) add({sev: 'Medium', code: 'Split mismatch', title: 'The category split on ' + dFull(t.date) + ' (' + inr(t.amt) + ') no longer adds up', detail: 'The payment or its kind changed since you split it, so the split is ignored and the whole amount keeps one category. Open the row and split again.', ids: [t.id], amount: t.amt, count: 1, tab: 'transactions', sig: 'split' + t.id});
@@ -387,11 +395,11 @@ function buildChecks() {
     const diff = r2(act - exp);
     ck.push({name, exp, act, diff, note: note || '', status: forceStatus || (Math.abs(diff) <= tol ? 'Reconciled' : 'Difference')});
   };
-  const st = S.meta && S.meta.statementBalance;
+  const sb = bankStatementBalance(), st = sb ? sb.bal : null;
   if (st == null) ck.push({name: 'Ledger vs bank statement balance', exp: null, act: R.bankCum[last], diff: null, note: 'No statement balance entered.', status: 'Review Required'});
-  else add('Ledger vs bank statement balance', st, R.bankCum[last], 'Sum of every imported row against the statement balance in your workbook.');
-  const funds = ['H', 'I', 'S', 'M', 'X'].reduce((a, f) => a + R.F[f][last].close, 0);
-  add('Fund balances add up to ledger total (bank + cash)', R.famCum[last], funds, 'Household + Investment + Special + Medical + Unclassified');
+  else add('Ledger vs bank statement balance', st, R.bankCum[last], sb.src === 'statement' ? 'Sum of every bank row against the closing balance on your latest bank statement (' + dFull(sb.date) + ').' : 'Sum of every imported row against the statement balance in your workbook.');
+  const funds = FUNDS.reduce((a, f) => a + R.F[f][last].close, 0);
+  add('Fund balances add up to ledger total (bank + cash)', R.famCum[last], funds, 'Household + Investment + Special + Medical + Outside the family fund + Unclassified');
   // contributions identity
   for (const t of ['Household', 'Investment']) {
     let req = 0, paid = 0, out = 0, adv = 0;
@@ -415,8 +423,12 @@ function buildChecks() {
   add('Family fund position = fund balances', r2(R.famCum[last]), r2(funds), 'Bank ledger + cash in hand + pending manual bank entries');
   const xf = r2(sum(R.led.filter(e => e.kind === 'xfer' && e.src === 'Bank'), e => e.amt));
   add('Internal transfers net to zero', 0, xf, 'In and out transfers between family accounts');
-  const unc = R.led.filter(e => e.kind === 'oth');
+  const unc = R.led.filter(e => e.kind === 'oth' && !e.flags.includes('Not reviewed'));
   ck.push({name: 'Rows with a usable Purpose', exp: 0, act: unc.length, diff: unc.length, note: unc.length ? unc.length + ' row(s) sit in the Unclassified fund.' : 'Every row is classified.', status: unc.length ? 'Missing Classification' : 'Reconciled'});
+  if (S.stmt.length) { const nr = R.led.filter(e => e.flags.includes('Not reviewed')).length;
+    ck.push({name: 'Bank statement rows approved', exp: 0, act: nr, diff: nr, note: nr ? nr + ' row(s) wait in To review; until then they count in no fund.' : 'Every statement row is approved.', status: nr ? 'Review Required' : 'Reconciled'}); }
+  const held = R.F.O[last].close;
+  if (S.stmt.length || Math.abs(held) > tol) ck.push({name: 'Money held for others (outside the family fund)', exp: null, act: held, diff: null, note: Math.abs(held) > tol ? inr2(held) + ' came in for others and has not gone out yet.' : 'Everything that came in for others has gone out again.', status: held < -tol ? 'Review Required' : 'Reconciled'});
   ck.push({name: 'Cash in hand is not negative', exp: 0, act: R.cashCum[last], diff: null, note: '', status: R.cashCum[last] < -tol ? 'Difference' : 'Reconciled'});
   const hn = R.F.H.some(x => x.close < -tol);
   ck.push({name: 'Household fund never below zero', exp: null, act: R.F.H[last].close, diff: null, note: hn ? 'Household fund was overdrawn in ' + R.F.H.filter(x => x.close < -tol).length + ' month-end(s); see Household.' : '', status: hn ? 'Review Required' : 'Reconciled'});

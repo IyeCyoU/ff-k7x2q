@@ -19,6 +19,7 @@ from playwright.sync_api import sync_playwright
 ROOT = pathlib.Path(__file__).resolve().parents[1]
 APP = ROOT / "dist" / "index.html"
 SAMPLE = ROOT / "sample-data" / "sample-workbook.xlsx"
+STATEMENT = ROOT / "sample-data" / "sample-statement-2026-04.xlsx"
 VIEWPORTS = [("desktop", {"width": 1360, "height": 900}), ("phone", {"width": 393, "height": 852})]
 # Never press these: they end the session rather than test a feature.
 SKIP = re.compile(r"erase everything|restore backup|choose (your )?workbook|import workbook|replace", re.I)
@@ -67,6 +68,8 @@ def run(vendor):
             page.wait_for_selector("#applyImp")
             page.click("#applyImp")
             page.wait_for_selector(".hero")
+            # a bank statement too, so the To review page and the split dialog have rows to try
+            page.set_input_files("#file", str(STATEMENT)); page.wait_for_selector("#applyStmt"); page.click("#applyStmt"); page.wait_for_timeout(200)
             tabs = page.evaluate("TABS.map(t => t[0])")
             cursor = [0]
 
@@ -168,6 +171,8 @@ if __name__ == "__main__":
     subprocess.run([sys.executable, str(ROOT / "build.py")], check=True, stdout=subprocess.DEVNULL)
     if not SAMPLE.exists():
         subprocess.run([sys.executable, str(ROOT / "sample-data" / "make_sample.py")], check=True)
+    if not STATEMENT.exists():
+        subprocess.run([sys.executable, str(ROOT / "sample-data" / "make_statement.py")], check=True)
     run(os.environ.get("LOCAL_VENDOR"))
     seen, uniq = set(), []
     for w, what, d in problems:

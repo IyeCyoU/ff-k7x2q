@@ -1,7 +1,7 @@
 'use strict';
 /* ============ view helpers ============ */
-const KIND_LABEL = {hhc: 'Household contribution', invc: 'Investment contribution', spc: 'Special contribution', hhx: 'Household expense', med: 'Medical expense', spx: 'Special expense', invd: 'Investment deployed', invr: 'Investment returned', rcpt: 'Other receipt', chg: 'Bank charge', xfer: 'Transfer / adjustment', oth: 'Unclassified'};
-const FUND_LABEL = {H: 'Household', I: 'Investment', S: 'Special', M: 'Medical (separate)', X: 'Unclassified'};
+const KIND_LABEL = {hhc: 'Household contribution', invc: 'Investment contribution', spc: 'Special contribution', hhx: 'Household expense', med: 'Medical expense', spx: 'Special expense', invd: 'Investment deployed', invr: 'Investment returned', rcpt: 'Other receipt', ext: 'Outside the family fund', chg: 'Bank charge', xfer: 'Transfer / adjustment', oth: 'Unclassified'};
+const FUND_LABEL = {H: 'Household', I: 'Investment', S: 'Special', M: 'Medical (separate)', O: 'Outside the family fund', X: 'Unclassified'};
 const pill = (t, tone) => '<span class="pill ' + (tone || '') + '">' + esc(t) + '</span>';
 const statusTone = s => ({'Paid': 'pos', 'Partially Paid': 'warn', 'Unpaid': 'neg', 'Overpaid': 'info', 'Advance': 'info'}[s] || '');
 const checkTone = s => ({'Reconciled': 'pos', 'Difference': 'neg', 'Review Required': 'warn', 'Missing Classification': 'warn'}[s] || '');
@@ -58,12 +58,13 @@ function vOverview() {
   const P = periodInfo(), ai = P.end, B = S.cfg.brothers, tol = S.cfg.tol;
   const H = R.F.H[ai], I = R.F.I[ai], Sp = R.F.S[ai], Md = R.F.M[ai], X = R.F.X[ai];
   const fam = R.famCum[ai], bank = R.bankCum[ai], cash = R.cashCum[ai] + R.pendCum[ai];
-  const isLast = ai === R.N - 1, st = S.meta && S.meta.statementBalance;
+  const isLast = ai === R.N - 1, sbx = bankStatementBalance(), st = sbx ? sbx.bal : null;
   const recOK = isLast && st != null ? Math.abs(R.bankCum[ai] - st) <= tol : null;
   const eq = [['Investment fund', I.close], ['Household fund', H.close]];
   if (Math.abs(Sp.close) > tol) eq.push(['Special / extraordinary fund', Sp.close]);
   if (Math.abs(Md.close) > tol) eq.push(['Separate medical fund', Md.close]);
-  if (Math.abs(X.close) > tol) eq.push(['Unclassified', X.close]);
+  if (Math.abs(R.F.O[ai].close) > tol) eq.push(['Outside the family fund', R.F.O[ai].close]);
+  if (Math.abs(X.close) > tol) eq.push(['Unclassified / not reviewed', X.close]);
   let msg = '';
   if (H.close < -tol && I.close > 0) msg = 'The household fund is overdrawn by ' + inr(-H.close) + ', so money that was contributed for investment is covering day-to-day and medical spending. See Household and Investments.';
   else if (H.close < -tol) msg = 'The household fund is overdrawn by ' + inr(-H.close) + '.';
