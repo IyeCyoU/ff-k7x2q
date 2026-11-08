@@ -7,6 +7,9 @@ const FUNDS = ['H', 'I', 'S', 'M', 'O', 'X'];   // household, investment, specia
 const OUTSIDE_REASONS = ['Payable to a third party', 'Donation / charity', 'Other debt', 'Not part of the family fund'];   // which version's "what's new" this browser has shown
 const APP_VERSION = '__APP_VERSION__';   // filled in by build.py from VERSION
 const WHATS_NEW = {   // shown once after an update; newest first
+  '1.4.0': ['Add a bank transaction by hand (To review → Add transaction by hand), with who, what for and splits.',
+            'When the statement with that transaction is imported, the app recognises your hand entry and keeps your choices: no duplicate.',
+            'Setup → Remove Excel history: start clean and rebuild from bank statements and hand entries; your plan, cash ledger and approvals stay.'],
   '1.3.1': ['Money held for others (from a split or an "Outside the family fund" row) is no longer counted in the family\'s total. It is shown separately until it is paid out.',
             'When the bank balance differs from your statement, the app now says where the difference starts. Tap "see why".'],
   '1.3.0': ['Import the bank statement straight from HDFC net banking (Excel). No separate spreadsheet needed.',

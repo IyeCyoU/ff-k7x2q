@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.4.0
+- **Add a transaction by hand** on To review: date, in/out, amount, description, then who and what for (with splits), in the same dialog as statement rows. Marked "By hand" in Transactions; can be deleted.
+- Importing a statement **recognises hand entries** (same amount, within 5 days): the bank row replaces the hand entry and keeps its who/what and split. A hand entry dated inside the statement's period but not in it is flagged.
+- Hand entries dated after the latest statement do not count as a difference from the bank balance.
+- **Setup → Remove Excel history**: drops the rows imported from the workbook and keeps statements, hand entries, approvals, cash ledger, plan, categories and family members.
+
 ## 1.3.1
 - The family fund position no longer includes money held for others (Outside the family fund); it is shown on its own line under the total, and in the monthly report, WhatsApp text and PDF.
 - "Differs from statement" explains itself: the app finds the first day its bank balance and the bank's disagree, and says whether the gap comes from the Excel history before the first statement or from a day inside it.

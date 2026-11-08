@@ -97,20 +97,33 @@ function planStatementImport(p) {
     if (wbLast && t.date <= wbLast && pool[k] > 0) { pool[k]--; inWb.push(t); continue; }
     fresh.push(t);
   }
+  // hand entries this statement now confirms: same amount, within 5 days; your who/what for them is kept
+  const hand = S.stmt.filter(t => t.manual), used = new Set(), matched = [];
+  for (const t of fresh) {
+    const m = hand.find(h => !used.has(h.id) && h.amt === t.amt && Math.abs(Date.parse(h.date) - Date.parse(t.date)) <= 5 * 864e5);
+    if (m) { used.add(m.id); matched.push([m, t]); }
+  }
+  const missingHand = hand.filter(h => !used.has(h.id) && h.date >= p.period.from && h.date <= p.period.to);
   // does the statement continue from the balance the app already has?
   let gap = null, appBefore = null, stmtBefore = null;
   const existing = S.tx.length + S.stmt.length;
   if (fresh.length && existing) {
     const first = fresh[0], idx = p.rows.indexOf(first);
     stmtBefore = r2(first.bal - first.amt);
-    appBefore = r2([...S.tx, ...S.stmt].filter(t => t.date < first.date).reduce((a, t) => a + t.amt, 0) + p.rows.slice(0, idx).filter(t => t.date === first.date).reduce((a, t) => a + t.amt, 0));
+    appBefore = r2([...S.tx, ...S.stmt.filter(t => !used.has(t.id))].filter(t => t.date < first.date).reduce((a, t) => a + t.amt, 0) + p.rows.slice(0, idx).filter(t => t.date === first.date).reduce((a, t) => a + t.amt, 0));
     gap = r2(stmtBefore - appBefore);
   }
   const lastKnown = [...S.tx, ...S.stmt].reduce((m, t) => t.date > m ? t.date : m, '');
-  return {fresh, dupes, inWb, gap, appBefore, stmtBefore, lastKnown, opening: !existing ? p.opening : null};
+  return {fresh, dupes, inWb, gap, appBefore, stmtBefore, lastKnown, opening: !existing ? p.opening : null, matched, missingHand};
 }
 function applyStatementImport(p, plan) {
   const add = plan.fresh.map(t => Object.assign({}, t));
+  for (const [h, t] of plan.matched || []) {          // the bank row replaces your hand entry and keeps your choices
+    if (S.review[h.id]) { S.review[t.id] = S.review[h.id]; delete S.review[h.id]; }
+    if (S.overlay[h.id]) { S.overlay[t.id] = S.overlay[h.id]; delete S.overlay[h.id]; }
+  }
+  const gone = new Set((plan.matched || []).map(([h]) => h.id));
+  S.stmt = S.stmt.filter(t => !gone.has(t.id));
   if (plan.opening) add.unshift({id: 'B|opening|' + p.rows[0].date, date: p.rows[0].date, desc: 'Opening balance of the first statement imported', ref: '', vdate: p.rows[0].date, wd: 0, dep: plan.opening > 0 ? plan.opening : 0, amt: plan.opening, bal: plan.opening, row: 0, file: p.file, opening: true});
   S.stmt = S.stmt.concat(add);
   const order = new Map(S.stmt.map((t, i) => [t.id, i]));
@@ -120,9 +133,9 @@ function applyStatementImport(p, plan) {
 /* Where do the app and the bank first disagree? Compare the app's bank balance with the bank's own closing
    balance at the end of every day a statement covers. */
 function bankDrift() {
-  if (!S.stmt.length) return null;
+  if (!S.stmt.some(t => !t.manual)) return null;
   const all = [...S.tx.map(t => ({date: t.date, amt: t.amt})), ...S.stmt.map(t => ({date: t.date, amt: t.amt}))].sort((a, b) => a.date < b.date ? -1 : a.date > b.date ? 1 : 0);
-  const dayEnd = {}; for (const t of S.stmt) dayEnd[t.date] = t.bal;   // statement rows are in bank order, so the last one wins
+  const dayEnd = {}; for (const t of S.stmt) if (!t.manual) dayEnd[t.date] = t.bal;   // statement rows are in bank order, so the last one wins
   let cum = 0, k = 0;
   const days = Object.keys(dayEnd).sort();
   for (const d of days) {
@@ -138,7 +151,11 @@ function driftText() {
   return 'The app and the bank agree until ' + dFull(d.date) + ', when they start to differ by ' + inr2(d.diff) + '. Check the rows of that day and the statement covering it.';
 }
 function bankStatementBalance() {
-  if (S.stmt && S.stmt.length) { const t = S.stmt[S.stmt.length - 1]; return {bal: t.bal, date: t.date, src: 'statement'}; }
+  const real = (S.stmt || []).filter(t => !t.manual);
+  if (real.length) {
+    const t = real[real.length - 1], later = S.stmt.filter(x => x.manual && x.date > t.date);
+    return {bal: r2(t.bal + later.reduce((a, x) => a + x.amt, 0)), date: t.date, src: 'statement', handAfter: later.length};
+  }
   return S.meta && S.meta.statementBalance != null ? {bal: S.meta.statementBalance, src: 'workbook'} : null;
 }
 
@@ -184,13 +201,13 @@ function stmtEntries(t, n) {
   const rv = S.review[t.id], base = {id: t.id, date: t.date, desc: t.desc, amt: t.amt, row: 1e6 + n};
   if (!rv) {
     const e = classifyBank(Object.assign({}, base, {dep: '', purpose: '', type: t.amt >= 0 ? 'Deposit' : 'Withdrawal'}));
-    return [Object.assign(e, {flags: ['Not reviewed'], stmt: true, reviewed: false, ref: t.ref, bal: t.bal})];
+    return [Object.assign(e, {flags: ['Not reviewed'], stmt: true, reviewed: false, ref: t.ref, bal: t.bal, manual: !!t.manual})];
   }
   const sign = t.amt >= 0 ? 1 : -1, N = rv.parts.length;
   return rv.parts.map((p, k) => {
     const e = classifyBank(Object.assign({}, base, {id: N > 1 ? t.id + '~' + (k + 1) : t.id, dep: p.who, purpose: p.purpose, reason: p.reason, cat: p.cat, med: p.med,
       type: p.purpose === 'Internal Transfer' ? 'Internal Transfer' : sign > 0 ? 'Deposit' : 'Withdrawal', amt: N > 1 ? r2(sign * p.amt) : t.amt}));
-    return Object.assign(e, {stmt: true, reviewed: true, ref: t.ref, bal: t.bal, note: rv.note || e.note}, N > 1 ? {parentId: t.id, splitIdx: k + 1, splitN: N, splitKind: 'review'} : {});
+    return Object.assign(e, {stmt: true, reviewed: true, ref: t.ref, bal: t.bal, manual: !!t.manual, note: rv.note || e.note}, N > 1 ? {parentId: t.id, splitIdx: k + 1, splitN: N, splitKind: 'review'} : {});
   });
 }
 /* A brother paid for something himself (cash, his own card, his own account): it is his contribution and
@@ -218,7 +235,7 @@ function vReview() {
   UI.rvpage = Math.min(UI.rvpage || 0, Math.max(0, Math.ceil(todo.length / pg) - 1));
   const vis = todo.slice(UI.rvpage * pg, UI.rvpage * pg + pg);
   const files = S.stmtFiles.slice(-6).reverse();
-  const head = '<div class="vh"><h1>To review</h1><span class="sub">' + (todo.length ? todo.length + ' bank row' + (todo.length === 1 ? '' : 's') + ' waiting for you' : 'Nothing waiting') + '</span><div class="actions"><button class="btn primary" data-act="pickFile">Import bank statement</button></div></div>';
+  const head = '<div class="vh"><h1>To review</h1><span class="sub">' + (todo.length ? todo.length + ' bank row' + (todo.length === 1 ? '' : 's') + ' waiting for you' : 'Nothing waiting') + '</span><div class="actions"><button class="btn" data-act="handAdd">Add transaction by hand</button><button class="btn primary" data-act="pickFile">Import bank statement</button></div></div>';
   const how = '<div class="callout">Each row from the bank needs your approval: <b>who</b> it belongs to and <b>what it was for</b>. The app suggests both from your history; nothing counts toward a brother or a fund until you approve it. Use <b>Split</b> when one payment covers several people or purposes, for example a deposit that is partly a brother\'s contribution and partly money owed to someone else.</div>';
   const list = vis.length ? '<div class="rv-list">' + vis.map(t => {
     const s = UI.rvDraft && UI.rvDraft[t.id] || suggestFor(t, learned);
@@ -260,13 +277,13 @@ function reviewDialog(id) {
   const rv = S.review[id], total = r2(Math.abs(t.amt));
   const parts = rv ? rv.parts.map(p => Object.assign({}, p, {amt: rv.parts.length > 1 ? p.amt : total})) : [Object.assign({}, UI.rvDraft && UI.rvDraft[id] || suggestFor(t), {amt: total})];
   openModal('<div class="modal-bg" data-modal><div class="modal wide" role="dialog" aria-modal="true" aria-labelledby="rv-t"><h2 id="rv-t">' + (rv ? 'Change' : 'Review') + ' bank row</h2>' +
-    '<div class="kv mb"><div class="r"><span>Date</span><b>' + dFull(t.date) + '</b></div><div class="r"><span>Amount</span><b class="' + moneyCls(t.amt) + '">' + inr2(t.amt) + '</b></div><div class="r"><span>Narration</span><b style="word-break:break-all">' + esc(t.desc) + '</b></div>' + (t.ref ? '<div class="r"><span>Reference</span><b>' + esc(t.ref) + '</b></div>' : '') + '<div class="r"><span>Balance after</span><b>' + inr2(t.bal) + '</b></div></div>' +
+    '<div class="kv mb"><div class="r"><span>Date</span><b>' + dFull(t.date) + '</b></div><div class="r"><span>Amount</span><b class="' + moneyCls(t.amt) + '">' + inr2(t.amt) + '</b></div><div class="r"><span>Narration</span><b style="word-break:break-all">' + esc(t.desc) + '</b></div>' + (t.ref ? '<div class="r"><span>Reference</span><b>' + esc(t.ref) + '</b></div>' : '') + (t.manual ? '<div class="r"><span>Source</span><b>Entered by hand (not yet in a bank statement)</b></div>' : '<div class="r"><span>Balance after</span><b>' + inr2(t.bal) + '</b></div>') + '</div>' +
     '<div class="small mb">Split into parts when this payment covers more than one person or purpose. The parts must add up to ' + inr2(total) + '.</div>' +
     '<div id="rv-parts" data-id="' + esc(id) + '" data-total="' + total + '">' + parts.map(p => rvPartRow(t, p)).join('') + '</div>' +
     '<div class="row mt"><button class="btn sm" data-act="rpAdd">Add part</button><span class="small" id="rp-rem"></span></div>' +
     '<div class="field mt"><label for="rv-note">Note (optional)</label><input id="rv-note" value="' + esc(rv ? rv.note : '') + '" placeholder="e.g. Bilal deposited Aman\'s share"></div>' +
     '<p class="small" id="rv-msg" role="alert" style="color:var(--neg)"></p>' +
-    '<div class="foot">' + (rv ? '<button class="btn danger" data-act="rvUndo" data-arg="' + esc(id) + '">Mark as not reviewed</button>' : '') + '<button class="btn" data-act="closeModal">Cancel</button><button class="btn primary" data-act="rvSave">Approve</button></div></div></div>');
+    '<div class="foot">' + (t.manual ? '<button class="btn danger" data-act="handDelete" data-arg="' + esc(id) + '">Delete hand entry</button>' : '') + (rv ? '<button class="btn danger" data-act="rvUndo" data-arg="' + esc(id) + '">Mark as not reviewed</button>' : '') + '<button class="btn" data-act="closeModal">Cancel</button><button class="btn primary" data-act="rvSave">Approve</button></div></div></div>');
   rpRemaining();
 }
 function rpRemaining() {
@@ -280,7 +297,36 @@ function rpRemaining() {
     $('.rp-cat', r).hidden = !(t && t.amt < 0 && ['Family Expenses', 'Medical Expense', 'Additional Expense'].includes(p));
   }
 }
+/* ---- transactions entered by hand ---- */
+function handModal() {
+  openModal('<div class="modal-bg" data-modal><div class="modal" role="dialog" aria-modal="true" aria-labelledby="hd-t"><h2 id="hd-t">Add a bank transaction by hand</h2>' +
+    '<p class="small mb">For a transaction that is not in an imported statement yet. When you import the statement that has it, the app recognises it (same amount, within 5 days) and keeps what you choose here instead of adding it twice.</p>' +
+    '<div class="formgrid"><div class="field"><label for="hd-date">Date</label><input id="hd-date" type="date" value="' + todayISO() + '"></div>' +
+    '<div class="field"><label for="hd-dir">Money</label><select id="hd-dir"><option value="in">Came in (deposit)</option><option value="out">Went out (withdrawal)</option></select></div>' +
+    '<div class="field"><label for="hd-amt">Amount (₹)</label><input id="hd-amt" type="text" inputmode="decimal" autocomplete="off" data-num></div>' +
+    '<div class="field span3"><label for="hd-desc">Description</label><input id="hd-desc" placeholder="e.g. UPI from Aman, monthly expenses"></div></div>' +
+    '<p class="small" id="hd-msg" role="alert" style="color:var(--neg)"></p>' +
+    '<div class="foot"><button class="btn" data-act="closeModal">Cancel</button><button class="btn primary" data-act="handNext">Next: who and what for</button></div></div></div>');
+}
 const STMT_ACTIONS = {
+  handAdd: () => handModal(),
+  handNext: () => {
+    const date = $('#hd-date').value, amt = parseAmount($('#hd-amt').value), desc = $('#hd-desc').value.trim(), out = $('#hd-dir').value === 'out', msg = $('#hd-msg');
+    if (!validISO(date)) { msg.textContent = 'Enter a valid date.'; return; }
+    if (!(amt > 0)) { msg.textContent = 'Enter an amount above zero.'; return; }
+    if (!desc) { msg.textContent = 'Add a short description so the entry can be recognised later.'; return; }
+    const a = r2(out ? -amt : amt), t = {id: 'M|' + uid(), date, desc, ref: '', vdate: date, wd: out ? r2(amt) : 0, dep: out ? 0 : r2(amt), amt: a, bal: null, row: 0, file: 'Entered by hand', manual: true};
+    S.stmt.push(t);
+    const order = new Map(S.stmt.map((x, i) => [x.id, i]));
+    S.stmt.sort((x, y) => x.date < y.date ? -1 : x.date > y.date ? 1 : order.get(x.id) - order.get(y.id));
+    persist(); refresh(); reviewDialog(t.id);
+  },
+  handDelete: el => confirmModal('Delete this hand entry?', '<p>It is removed from the app, with what you chose for it. Bank statement rows are never deleted this way.</p>', 'Delete', () => {
+    const id = el.dataset.arg; S.stmt = S.stmt.filter(t => !(t.id === id && t.manual)); delete S.review[id]; delete S.overlay[id]; persist(); refresh(); toast('Hand entry deleted');
+  }, true),
+  removeHistory: () => confirmModal('Remove your Excel history?', '<p>This removes the ' + S.tx.length + ' rows imported from your Excel workbook, so you can rebuild the history from bank statements and hand entries. Statement rows, hand entries, your approvals, cash ledger, plan, categories and family members stay.</p><p class="small">Save a backup first if you might want them back.</p>', 'Remove Excel history', () => {
+    S.tx = []; S.bad = []; S.meta = null; derive(); if (R.months.length) defaultFilters(); persist(); refresh(); toast('Excel history removed');
+  }, true),
   rvApprove: el => {
     const id = el.dataset.arg, c = readRowChoice(id, 'rv'), t = S.stmt.find(x => x.id === id);
     if (!c.who) { toast('Choose who this row belongs to.'); const w = document.querySelector('[data-rv-who="' + CSS.escape(id) + '"]'); if (w) w.focus(); return; }
@@ -329,6 +375,7 @@ function statementImportDialog(p) {
   if (p.breaks.length) warn.push('The running balance does not add up at ' + p.breaks.length + ' place(s), first on ' + dFull(p.breaks[0].date) + ' (expected ' + inr2(p.breaks[0].expected) + ', the statement says ' + inr2(p.breaks[0].found) + '). A row may be missing from this file.');
   if (!p.summaryOK) warn.push('The rows do not match the bank\'s own summary at the end of the statement. The file may be incomplete.');
   if (p.bad.length) warn.push(p.bad.length + ' line(s) could not be read and were left out, first on sheet row ' + p.bad[0].row + '.');
+  if (plan.missingHand.length) warn.push(plan.missingHand.length + ' hand entr' + (plan.missingHand.length === 1 ? 'y is' : 'ies are') + ' dated inside this statement\'s period but not in it (first: ' + dFull(plan.missingHand[0].date) + ', ' + inr2(plan.missingHand[0].amt) + '). Check the date and amount, or delete it if it never happened.');
   if (plan.gap != null && Math.abs(plan.gap) > tol) warn.push('This statement starts from a balance of ' + inr2(plan.stmtBefore) + ', but the app has ' + inr2(plan.appBefore) + ' up to that day: a difference of ' + inr2(plan.gap) + '. A statement for an earlier period may be missing' + (plan.lastKnown ? ' (the app\'s last row is ' + dFull(plan.lastKnown) + ')' : '') + '.');
   const ok = !warn.length;
   openModal('<div class="modal-bg" data-modal><div class="modal" role="dialog" aria-modal="true"><h2>Import bank statement</h2><div class="kv">' +
@@ -336,6 +383,7 @@ function statementImportDialog(p) {
     '<div class="r"><span>Rows in the statement</span><b>' + p.rows.length + '</b></div><div class="r"><span>New rows to add</span><b>' + plan.fresh.length + '</b></div>' +
     (plan.dupes.length ? '<div class="r"><span>Already imported before</span><b>' + plan.dupes.length + ' (skipped)</b></div>' : '') +
     (plan.inWb.length ? '<div class="r"><span>Already in your Excel history</span><b>' + plan.inWb.length + ' (skipped)</b></div>' : '') +
+    (plan.matched.length ? '<div class="r"><span>Your hand entries found in it</span><b>' + plan.matched.length + ' (your who and what are kept)</b></div>' : '') +
     '<div class="r"><span>Opening → closing balance</span><b>' + inr2(p.opening) + ' → ' + inr2(p.closing) + '</b></div></div>' +
     (plan.opening ? '<div class="callout mt">This is the first statement in the app, so its opening balance (' + inr2(plan.opening) + ') is added as a row for you to review too.</div>' : '') +
     (ok ? '<div class="callout pos mt">The running balance checks out' + (p.summary ? ', the rows match the bank\'s summary' : '') + (plan.gap != null ? ', and it continues from the balance already in the app' : '') + '.</div>' : '<div class="callout warn mt">' + warn.map(esc).join('<br>') + '</div>') +

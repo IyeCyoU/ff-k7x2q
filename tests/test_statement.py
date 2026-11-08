@@ -227,3 +227,71 @@ def test_a_balance_difference_explains_where_it_starts(loaded):
 def test_no_difference_means_no_explanation(loaded):
     import_statement(loaded, APRIL)
     assert js(loaded, "() => bankDrift()") is None
+
+
+def add_by_hand(page, date, direction, amount, desc):
+    js(page, "goto('review')")
+    page.click("[data-act=handAdd]")
+    page.fill("#hd-date", date); page.select_option("#hd-dir", direction)
+    page.click("#hd-amt"); page.keyboard.type(amount); page.fill("#hd-desc", desc)
+    page.click("[data-act=handNext]")
+    page.wait_for_selector("#rv-parts")
+
+
+def test_hand_entry_is_reviewed_and_counts(loaded):
+    before = js(loaded, "() => ({bank: R.bankCum[R.N-1], paid: R.C.Aman.Household.at(-1).cumPaid})")
+    add_by_hand(loaded, "2026-03-28", "in", "5,000", "Cash deposit by Aman")
+    p = loaded.query_selector("#rv-parts .rv-part")
+    p.query_selector(".rp-who").select_option("Aman"); p.query_selector(".rp-purpose").select_option("Family Expenses")
+    loaded.click("[data-act=rvSave]"); loaded.wait_for_timeout(150)
+    after = js(loaded, "() => ({bank: R.bankCum[R.N-1], paid: R.C.Aman.Household.at(-1).cumPaid, src: R.led.find(e => e.manual).manual})")
+    assert after["bank"] == pytest.approx(before["bank"] + 5000) and after["paid"] == pytest.approx(before["paid"] + 5000)
+    js(loaded, "goto('transactions')")
+    assert "By hand" in loaded.text_content("#view")
+
+
+def test_statement_recognises_a_hand_entry_and_keeps_its_choice(loaded):
+    """Enter Bilal's April deposit by hand, split it; then import April: no duplicate, the split is kept."""
+    add_by_hand(loaded, "2026-04-03", "in", "20000", "Bilal sent money")
+    loaded.click("[data-act=rpAdd]")
+    parts = loaded.query_selector_all("#rv-parts .rv-part")
+    for el, (who, amt) in zip(parts, [("Bilal", "12000"), ("Aman", "8000")]):
+        el.query_selector(".rp-who").select_option(who); el.query_selector(".rp-purpose").select_option("Family Expenses")
+        a = el.query_selector(".rp-amt"); a.fill(""); a.type(amt)
+    loaded.click("[data-act=rvSave]"); loaded.wait_for_timeout(150)
+    text = import_statement(loaded, APRIL, apply=False)
+    assert "Your hand entries found in it1" in text.replace("\n", "").replace(" (your who and what are kept)", "")
+    assert "continues from the balance already in the app" in text
+    loaded.click("#applyStmt"); loaded.wait_for_timeout(150)
+    r = js(loaded, """() => { const t = S.stmt.find(t => payeeOf(t.desc) === 'BILALSAMPLE');
+        return {n: S.stmt.length, hand: S.stmt.filter(t => t.manual).length, parts: S.review[t.id] && S.review[t.id].parts.map(p => [p.who, p.amt]),
+                bank: R.bankCum[R.N-1], stmt: bankStatementBalance().bal}; }""")
+    assert r["n"] == 12 and r["hand"] == 0
+    assert r["parts"] == [["Bilal", 12000], ["Aman", 8000]]
+    assert r["bank"] == pytest.approx(r["stmt"])
+
+
+def test_hand_entry_after_the_last_statement_is_not_a_difference(loaded):
+    import_statement(loaded, APRIL)
+    add_by_hand(loaded, "2026-05-10", "out", "700", "Gas cylinder")
+    loaded.click("[data-act=rvSave]"); loaded.wait_for_timeout(150)
+    assert "Unreconciled amount" not in js(loaded, "() => R.exceptions.map(e => e.code)")
+    assert js(loaded, "() => bankStatementBalance().handAfter") == 1
+
+
+def test_hand_entry_missing_from_its_statement_is_flagged(loaded):
+    add_by_hand(loaded, "2026-04-10", "out", "999", "Something that never happened")
+    loaded.click("[data-act=rvSave]"); loaded.wait_for_timeout(150)
+    text = import_statement(loaded, APRIL, apply=False)
+    assert "dated inside this statement's period but not in it" in text
+
+
+def test_hand_entry_can_be_deleted_and_excel_history_removed(loaded):
+    add_by_hand(loaded, "2026-03-28", "in", "100", "Test entry")
+    loaded.click("[data-act=handDelete]"); loaded.click("#confirmOk"); loaded.wait_for_timeout(150)
+    assert js(loaded, "() => S.stmt.filter(t => t.manual).length") == 0
+    import_statement(loaded, APRIL)
+    js(loaded, "goto('setup')")
+    loaded.click("[data-act=removeHistory]"); loaded.click("#confirmOk"); loaded.wait_for_timeout(150)
+    r = js(loaded, "() => ({tx: S.tx.length, stmt: S.stmt.length, plan: S.cfg.plan.length})")
+    assert r["tx"] == 0 and r["stmt"] == 12 and r["plan"] >= 1
