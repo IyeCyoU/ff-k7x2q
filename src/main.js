@@ -83,8 +83,27 @@ function drawView() {
   try { html = noData && UI.tab !== 'setup' ? emptyState() : VIEWS[UI.tab](); }
   catch (e) { html = '<div class="callout neg"><b>This page could not be drawn.</b> ' + esc(e.message) + '</div>'; console.error(e); }
   el.innerHTML = html;
+  if (!noData && PRINTABLE[UI.tab]) addPrint(el);
   drawCharts(); initSortables();
-  if (y) window.scrollTo(0, y);
+  if (y) jumpTo(y);   // straight back to where you were, not a smooth glide from the top
+}
+/* ============ printing ============
+   Overview, Contributions, Household, Investments and Housing goal each get a Print button.
+   The print layout (style.css, @media print) drops the menus and buttons, keeps light colours
+   and adds a line saying what was printed and when. Ctrl+P / the browser's own Print works too. */
+const PRINTABLE = {overview: 'Overview', contributions: 'Contribution tracker', household: 'Household fund', investments: 'Investment tracker', goal: 'Housing goal'};
+function addPrint(el) {
+  const vh = el.querySelector('.vh'); if (!vh) return;
+  let a = vh.querySelector('.actions');
+  if (!a) { a = document.createElement('div'); a.className = 'actions'; vh.appendChild(a); }
+  a.insertAdjacentHTML('beforeend', '<button class="btn" data-act="printPage">Print</button>');
+  const P = periodInfo();
+  vh.insertAdjacentHTML('beforebegin', '<div class="print-head">Family Fund · ' + esc(PRINTABLE[UI.tab]) + ' · ' + esc(P.label) + ' · printed ' + esc(new Date().toLocaleDateString('en-IN', {day: 'numeric', month: 'short', year: 'numeric'})) + ' · v' + esc(APP_VERSION) + '</div>');
+}
+function printPage() {
+  closeModal(); document.querySelectorAll('.toast').forEach(t => t.remove());
+  drawCharts();
+  window.print();
 }
 function refresh() { keepPlace(refreshAll); }
 function refreshAll() {
@@ -95,7 +114,9 @@ function refreshAll() {
   }
   renderNav(); renderFilters(); renderView();
 }
-function goto(tab, top = true) { UI.tab = tab; renderNav(); renderView(); if (top) window.scrollTo(0, 0); }
+// The page scrolls smoothly for links you follow, but the app's own corrections after a redraw must be instant.
+function jumpTo(y) { window.scrollTo({top: y, left: 0, behavior: 'instant'}); }
+function goto(tab, top = true) { UI.tab = tab; renderNav(); renderView(); if (top) jumpTo(0); }
 
 /* ============ column sorting ============ */
 UI.sorts = {};
@@ -313,6 +334,7 @@ const ACT = {
     closeModal(); persist(); refresh(); toast('Cash entry saved');
   },
   exportCash: () => saveFile('cash-ledger.csv', toCSV([['Date', 'Direction', 'By', 'Person', 'Mode', 'Account', 'Class', 'Category', 'Subcategory', 'Source of cash', 'Amount', 'Description', 'Reference', 'Notes']].concat(S.cash.map(c => [c.date, c.dir, c.by, c.person, c.mode, c.acct, c.cls, c.cat, c.sub, c.src, c.amt, c.desc, c.ref, c.note]))), 'text/csv'),
+  printPage: () => printPage(),
   pdfReport: async () => { const P = periodInfo(), d = reportData(P.sel); try { const buf = makeReportPDF(d); await saveFile('family-fund-report-' + d.m + '.pdf', buf, 'application/pdf'); } catch (e) { toast('Could not build the PDF: ' + e.message); } },
   copyReport: async () => { const t = whatsappText(reportData(periodInfo().sel)); try { await navigator.clipboard.writeText(t); toast('Copied. Paste it into WhatsApp.'); } catch (e) { const ta = document.createElement('textarea'); ta.value = t; document.body.appendChild(ta); ta.select(); try { document.execCommand('copy'); toast('Copied. Paste it into WhatsApp.'); } catch (e2) { openModal('<div class="modal-bg" data-modal><div class="modal"><h2>Copy this text</h2><div class="field"><textarea rows="14" readonly>' + esc(t) + '</textarea></div><div class="foot"><button class="btn primary" data-act="closeModal">Close</button></div></div></div>'); } ta.remove(); } },
   addMember: () => { let k = S.cfg.brothers.length + 1, name; do { name = 'Brother ' + k++; } while (S.cfg.brothers.includes(name)); S.cfg.brothers.push(name); S.cfg.people.push(name); persist(); refresh(); const el = $('#mb-' + (S.cfg.brothers.length - 1)); if (el) { el.focus(); el.select(); } },
@@ -321,7 +343,21 @@ const ACT = {
   saveCats: () => {
     const cats = {}; $('#cat-t').value.split('\n').map(l => l.trim()).filter(Boolean).forEach(l => { const [k, ...r] = l.split(':'); cats[k.trim()] = r.join(':').split(',').map(s => s.trim()).filter(Boolean); });
     if (!Object.keys(cats).length) { toast('Add at least one category.'); return; }
-    S.cfg.categories = cats; persist(); refresh(); toast('Categories saved');
+    const gone = Object.keys(S.cfg.categories).filter(k => !(k in cats));
+    const save = () => { S.cfg.categories = cats; persist(); refresh(); toast('Categories saved'); };
+    if (!gone.length) { save(); return; }
+    // never remove categories without saying so: the box replaces the whole list
+    const used = gone.filter(k => R.led.some(e => e.cat === k));
+    confirmModal('Remove ' + gone.length + ' categor' + (gone.length === 1 ? 'y' : 'ies') + '?',
+      '<p>The list in the box replaces your whole list, so these would be removed: <b>' + gone.map(esc).join(', ') + '</b>.</p>' +
+      (used.length ? '<p>' + used.length + ' of them are in use; those payments would show as Uncategorised.</p>' : '') +
+      '<p class="small">To add a category, add a new line to the list instead of replacing it.</p>', 'Remove them', save, true);
+  },
+  restoreCats: () => {
+    const add = Object.keys(DEFAULT_CATS).filter(k => !(k in S.cfg.categories));
+    if (!add.length) { toast('All the default categories are already there.'); return; }
+    for (const k of add) S.cfg.categories[k] = DEFAULT_CATS[k].slice();
+    persist(); refresh(); toast(add.length + ' default categor' + (add.length === 1 ? 'y' : 'ies') + ' added back');
   },
   addRule: () => { const k = $('#rl-k').value.trim(); if (!k) { toast('Enter the text to match.'); return; } S.cfg.rules.push({kw: k, cat: $('#rl-c').value}); persist(); refresh(); },
   delRule: el => { S.cfg.rules.splice(+el.dataset.arg, 1); persist(); refresh(); },

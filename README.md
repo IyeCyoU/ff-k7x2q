@@ -27,6 +27,7 @@ All screenshots use the synthetic workbook in `sample-data/`, not real figures.
 - **Categories without touching data.** Bank rows are read-only. Categories, payment modes, medical treatment, notes and category splits are stored as a separate layer that survives re-imports.
 - **Controls.** Reconciliation checks, and a review list for duplicates, missing brothers or categories, negative balances, unexplained cash and more. Nothing is ever deleted or changed for you.
 - **Monthly report.** On screen, as a PDF, or as text to paste into WhatsApp.
+- **Print any main page.** Overview, Contributions, Household, Investments and Housing goal have a Print button (or use Ctrl+P). The printout leaves out menus and buttons, stays light in dark mode and is headed with the page, period and date printed.
 
 ## Quick start
 
