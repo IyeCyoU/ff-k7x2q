@@ -7,6 +7,8 @@ const FUNDS = ['H', 'I', 'S', 'M', 'O', 'X'];   // household, investment, specia
 const OUTSIDE_REASONS = ['Payable to a third party', 'Donation / charity', 'Other debt', 'Not part of the family fund'];   // which version's "what's new" this browser has shown
 const APP_VERSION = '__APP_VERSION__';   // filled in by build.py from VERSION
 const WHATS_NEW = {   // shown once after an update; newest first
+  '1.4.1': ['Updates install by themselves when you open the app, and Reload always works, so the "new version" message no longer keeps coming back.',
+            'This note replaces the "What\'s new" window: it goes away by itself.'],
   '1.4.0': ['Add a bank transaction by hand (To review → Add transaction by hand), with who, what for and splits.',
             'When the statement with that transaction is imported, the app recognises your hand entry and keeps your choices: no duplicate.',
             'Setup → Remove Excel history: start clean and rebuild from bank statements and hand entries; your plan, cash ledger and approvals stay.'],
