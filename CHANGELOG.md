@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.4.1
+- Updates no longer nag: a waiting update is applied by itself when the app is opened or comes back to the screen; only an update that arrives while you are using the app asks first. Reload always reloads (some phones never announce the switch), with a guard against reload loops.
+- "What's new" is a small note that goes away by itself, with a button for the details, instead of a window to close.
+- Removed an index.html and sw.js from another app that had been uploaded to the top level by mistake; a test now fails if unexpected files appear there.
+
 ## 1.4.0
 - **Add a transaction by hand** on To review: date, in/out, amount, description, then who and what for (with splits), in the same dialog as statement rows. Marked "By hand" in Transactions; can be deleted.
 - Importing a statement **recognises hand entries** (same amount, within 5 days): the bank row replaces the hand entry and keeps its who/what and split. A hand entry dated inside the statement's period but not in it is flagged.

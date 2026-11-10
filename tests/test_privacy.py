@@ -36,3 +36,14 @@ def test_sample_workbooks_hold_no_real_names():
         wb = openpyxl.load_workbook(f)
         text = " ".join(str(c.value) for ws in wb for row in ws.iter_rows() for c in row if c.value is not None)
         assert private_words(text) == [], f.name
+
+
+def test_no_unexpected_files_at_the_top_level():
+    """Files uploaded by mistake (for example another app's index.html) must not sit in this repository.
+    The website is built from src/ into dist/; nothing at the top level is published."""
+    import subprocess
+    tracked = subprocess.run(["git", "ls-files"], cwd=ROOT, capture_output=True, text=True).stdout.split()
+    top = sorted({p.split("/")[0] for p in tracked})
+    allowed = {".github", ".gitignore", "CHANGELOG.md", "LICENSE", "NOTICE.md", "README.md", "VERSION", "build.py",
+               "docs", "package-lock.json", "package.json", "requirements-dev.txt", "sample-data", "scripts", "src", "tests"}
+    assert [t for t in top if t not in allowed] == [], "unexpected file or folder at the top level of the repository"

@@ -102,13 +102,17 @@ def test_works_offline_and_offers_new_version(built, browser, tmp_path):
         assert pg.title() == "Family Fund"
         load_sample(pg)                       # the libraries work offline too
         ctx.set_offline(False)
+        # while the app is in use (after the quiet start-up window), an update asks first, and Reload applies it
+        pg.wait_for_timeout(15500)
         sw = copy / "sw.js"
         sw.write_text(sw.read_text().replace("const CACHE = 'family-fund-", "const CACHE = 'family-fund-next-"))
         pg.evaluate("navigator.serviceWorker.getRegistration().then(r => r.update())")
         pg.wait_for_selector(".sw-update", timeout=10000)
         with pg.expect_navigation():
             pg.click(".sw-update button")
+        pg.wait_for_timeout(500)
         assert all(k.startswith("family-fund-next-") for k in pg.evaluate("caches.keys()"))
+        assert pg.query_selector(".sw-update") is None, "the message must not come back after Reload"
         assert pg.problems == []
         ctx.close()
     finally:
@@ -272,20 +276,23 @@ def test_whats_new_appears_once_after_an_update(site, browser):
     assert version in pg.text_content(".side .foot")
     pg.evaluate("localStorage.setItem(SEEN_KEY, '1.1.0')")   # as if this browser last ran 1.1.0
     pg.reload()
+    pg.wait_for_selector(".wn-note")
+    assert f"Updated to version {version}" in pg.text_content(".wn-note")
+    assert pg.query_selector("#wn-h") is None, "a note, not a window you must close"
+    pg.click(".wn-note button")                               # details only if asked for
     pg.wait_for_selector("#wn-h")
-    assert pg.text_content("#wn-h") == f"Updated to version {version}"
     assert "What's new in 1.2.0" in pg.text_content("#modalRoot")
     pg.click("#modalRoot [data-act=closeModal]")
     pg.reload()
     pg.wait_for_selector(".hero")
-    assert pg.query_selector("#wn-h") is None, "shown again after it was seen"
+    assert pg.query_selector(".wn-note") is None and pg.query_selector("#wn-h") is None, "shown again after it was seen"
     ctx.close()
 
 
 def test_new_user_does_not_get_whats_new(site, browser):
     ctx, pg = open_site(browser, site)
     pg.wait_for_selector("#view")
-    assert pg.query_selector("#wn-h") is None
+    assert pg.query_selector("#wn-h") is None and pg.query_selector(".wn-note") is None
     ctx.close()
 
 
@@ -318,3 +325,54 @@ def test_data_saved_by_an_older_version_keeps_working(site, browser):
     assert pg.evaluate("S.cfg.spender") == "".join(["B", "a", "p", "a"])
     assert pg.evaluate("R.exceptions.filter(e => e.code === 'Missing brother').length") == before
     ctx.close()
+
+
+
+def _new_version(copy):
+    sw = copy / "sw.js"
+    sw.write_text(sw.read_text().replace("const CACHE = 'family-fund-", "const CACHE = 'family-fund-next-", 1))
+
+
+def _waiting(pg):
+    return pg.evaluate("navigator.serviceWorker.getRegistration().then(r => !!(r && r.waiting))")
+
+
+def test_update_is_applied_on_opening_without_asking(built, browser, tmp_path):
+    copy = tmp_path / "site"; shutil.copytree(DIST, copy)
+    srv, url = serve(copy)
+    try:
+        ctx, pg = open_site(browser, url)
+        pg.evaluate("navigator.serviceWorker.ready"); pg.reload(); pg.wait_for_timeout(300)
+        _new_version(copy)
+        # a new tab = opening the app again; the waiting update is applied with no question
+        pg2 = ctx.new_page(); pg2.goto(url)
+        pg2.wait_for_timeout(4500)
+        keys = pg2.evaluate("caches.keys()")
+        assert all(k.startswith("family-fund-next-") for k in keys), keys
+        assert pg2.query_selector(".sw-update") is None, "no prompt when opening the app"
+        assert not _waiting(pg2)
+        ctx.close()
+    finally:
+        srv.shutdown()
+
+
+def test_reload_works_even_if_the_phone_never_announces_the_switch(built, browser, tmp_path):
+    """Some iPhones never fire 'controllerchange'. Reload must still reload, and must not loop."""
+    copy = tmp_path / "site"; shutil.copytree(DIST, copy)
+    srv, url = serve(copy)
+    try:
+        ctx, pg = open_site(browser, url)
+        pg.evaluate("navigator.serviceWorker.ready"); pg.reload(); pg.wait_for_timeout(300)
+        pg.wait_for_timeout(15500)                       # past the quiet start-up window: now "in use"
+        _new_version(copy)
+        pg.evaluate("navigator.serviceWorker.getRegistration().then(r => r.update())")
+        pg.wait_for_selector(".sw-update", timeout=10000)
+        pg.evaluate("ServiceWorker.prototype.postMessage = function () {}")   # the switch never happens
+        with pg.expect_navigation(timeout=6000):
+            pg.click(".sw-update button")                 # still reloads, after 3 s
+        pg.wait_for_timeout(1500)
+        # it did not loop: the update is offered once more instead of reloading again and again
+        assert pg.query_selector(".sw-update") is not None
+        ctx.close()
+    finally:
+        srv.shutdown()

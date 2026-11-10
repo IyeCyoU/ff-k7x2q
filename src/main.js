@@ -333,6 +333,7 @@ const ACT = {
     'Erase everything', eraseAll, true)
 };
 Object.assign(ACT, STMT_ACTIONS);
+ACT.whatsNewOpen = () => whatsNewModal(UI.wnVersions || []);
 ACT.editTx = el => {
   const e = R.byId[el.dataset.arg]; if (!e) return;
   if (e.src === 'Cash') { ACT.editCash({dataset: {arg: e.cashEntry ? e.cashEntry.id : e.id}}); return; }
@@ -463,6 +464,16 @@ function whatsNew() {
   if (seen === null && !S.tx.length && !S.cash.length) return;   // a brand-new user: nothing to compare with
   const vs = Object.keys(WHATS_NEW).filter(v => cmpVer(v, APP_VERSION) <= 0 && (!seen || cmpVer(v, seen) > 0));
   if (!vs.length) return;
+  // a small note that goes away by itself; the details open only if you ask for them
+  UI.wnVersions = vs;
+  const el = document.createElement('div'); el.className = 'toast wn-note'; el.setAttribute('role', 'status');
+  el.append('Updated to version ' + APP_VERSION + '. ');
+  const b = document.createElement('button'); b.type = 'button'; b.className = 'btn'; b.textContent = 'What\'s new'; b.style.marginLeft = '8px'; b.dataset.act = 'whatsNewOpen';
+  el.append(b); document.body.append(el);
+  setTimeout(() => el.remove(), 12000);
+}
+function whatsNewModal(vs) {
+  document.querySelectorAll('.wn-note').forEach(x => x.remove());
   openModal('<div class="modal-bg" data-modal><div class="modal" role="dialog" aria-modal="true" aria-labelledby="wn-h"><h2 id="wn-h">Updated to version ' + esc(APP_VERSION) + '</h2>' +
     vs.map(v => '<h3 style="margin:14px 0 6px;font-size:14px">What\'s new in ' + esc(v) + '</h3><ul style="margin:0;padding-left:18px;line-height:1.55">' + WHATS_NEW[v].map(x => '<li>' + esc(x) + '</li>').join('') + '</ul>').join('') +
     '<div class="foot"><button class="btn primary" data-act="closeModal">OK</button></div></div></div>');
