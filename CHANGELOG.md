@@ -1,6 +1,7 @@
 # Changelog
 
 ## 1.5.0
+- Start without the Excel workbook. The app used to stay on the start screen until a workbook was imported, even after a bank statement or hand entries had been added (or after Remove your Excel history). It now opens as soon as there is anything: a statement, a hand entry or a cash entry. The start screen offers all of these.
 - Print button on Overview, Contributions, Household, Investments and Housing goal (Ctrl+P works too). The print layout drops the sidebar, filters and buttons, always uses light colours, fits tables to the paper, keeps panels from splitting across pages and adds a top line: page, period, date printed, version.
 
 ## 1.4.2
