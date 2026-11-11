@@ -148,3 +148,15 @@ def test_each_main_page_prints_cleanly(loaded):
         loaded.set_viewport_size({"width": 1280, "height": 900})
     loaded.evaluate("()=>goto('transactions')")
     assert loaded.query_selector("#view [data-act=printPage]") is None
+
+
+def test_printed_tables_fit_with_a_wider_fallback_font(loaded):
+    """Fonts differ between devices (CI caught a 34 px overflow with a wider system font): tables must still fit the paper."""
+    loaded.add_style_tag(content="*{font-family:'DejaVu Sans',Verdana,sans-serif!important}")
+    loaded.set_viewport_size({"width": 680, "height": 1000})
+    for tab in PRINT_PAGES:
+        loaded.evaluate("t=>goto(t)", tab)
+        loaded.emulate_media(media="print")
+        over = loaded.evaluate("()=>document.documentElement.scrollWidth-document.documentElement.clientWidth")
+        assert over <= 1, (tab, over)
+        loaded.emulate_media(media="screen")

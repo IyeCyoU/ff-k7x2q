@@ -344,6 +344,7 @@ table.t{width:100%;border-collapse:separate;border-spacing:0;font-size:13.5px}
   *{-webkit-print-color-adjust:exact;print-color-adjust:exact}
   .side,.mheader,.bottomnav,#filters,.toast,#modalRoot,.vh .actions,.view button,.view .btn{display:none!important}
   .view input,.view select,.view textarea{border:0!important;background:none!important;box-shadow:none!important;padding:0!important;appearance:none;-webkit-appearance:none}
+  .view select{max-width:14ch!important;min-width:0!important;overflow:hidden;text-overflow:ellipsis}
   .app{display:block;min-height:0}
   .main,.view{padding:0!important;margin:0!important;max-width:none!important}
   .print-head{display:block;font-size:11px;color:var(--ink2);border-bottom:1px solid var(--line);padding-bottom:6px;margin-bottom:10px}
@@ -355,10 +356,10 @@ table.t{width:100%;border-collapse:separate;border-spacing:0;font-size:13.5px}
   .hero{box-shadow:none}
   .tw{overflow:visible!important;max-height:none!important}
   table{width:100%}
-  table.t{font-size:10.5px}
-  .t th,.t td{padding:5px 6px!important;white-space:normal!important;position:static}
-  .t th{font-size:9px;letter-spacing:.02em}
-  .t .num,.t th.num{white-space:nowrap!important}
+  table.t{font-size:10px}
+  .t th,.t td{padding:4px 5px!important;white-space:normal!important;position:static}
+  .t th{font-size:8.5px;letter-spacing:0;hyphens:auto}
+  .t td.num{white-space:nowrap!important}
   .t th.sortable::after{content:none}
   thead{display:table-header-group}
   svg{max-width:100%;height:auto}
