@@ -54,6 +54,15 @@ function defaultFilters() {
 }
 
 /* ============ OVERVIEW ============ */
+function oweCallout(ai) {
+  const o = fundsOwe(ai); if (!o) return '';
+  const parts = Object.keys(o.short).map(f => o.names[f] + ' ' + inr(o.short[f])).join(', ');
+  return '<div class="callout warn owe"><b>The spending funds owe the investment fund ' + inr(o.owed) + '.</b> Spending ran ahead of what was paid in for it (' + esc(parts) + '), so investment money in the bank covered it. ' +
+    'The books say the investment fund holds ' + inr(o.inv) + ', but bank and cash together hold ' + inr(o.held) + '. ' +
+    '<br><b>To put it back:</b> ' + (o.arrears > S.cfg.tol ? 'household contributions still outstanding ' + inr(o.arrears) + ', then ' : '') +
+    (o.rest > S.cfg.tol ? 'a top-up of ' + inr(o.rest) + ', which is ' + inr(o.each) + ' from each of the ' + o.n + ' brothers if shared equally.' : 'nothing more: the outstanding contributions cover it.') +
+    ' Each brother\'s investment share is not affected.</div>';
+}
 function vOverview() {
   const P = periodInfo(), ai = P.end, B = S.cfg.brothers, tol = S.cfg.tol;
   const H = R.F.H[ai], I = R.F.I[ai], Sp = R.F.S[ai], Md = R.F.M[ai], X = R.F.X[ai];
@@ -132,7 +141,7 @@ function vOverview() {
   const outflow = ti.map(i => -sum(sel(['period', 'brother', 'ctype', 'ttype'], e => e.month === R.months[i] && e.fund && ['hhx', 'chg', 'med', 'spx', 'invd', 'invr'].includes(e.kind)), e => e.amt));
   const c9 = panel('Monthly cash flow', chartSlot('c9', (el, W) => barChart(el, W, {labels: lbl, hi, series: [{name: 'Money in', color: 'var(--pos)', values: inflow}, {name: 'Money out', color: 'var(--neg)', values: outflow}], lines: [{name: 'Family fund position', color: 'var(--info)', values: ti.map(i => R.famCum[i])}], aria: 'Monthly cash flow'})), {note: 'Transfers between family accounts excluded'});
 
-  return '<div class="vh"><h1>Overview</h1><span class="sub">' + esc(P.label) + ' · data through ' + esc(dFull(R.led[R.led.length - 1].date)) + '</span><div class="actions"><button class="btn" data-act="handAdd">Add transaction</button></div></div>' + hero + kp +
+  return '<div class="vh"><h1>Overview</h1><span class="sub">' + esc(P.label) + ' · data through ' + esc(dFull(R.led[R.led.length - 1].date)) + '</span><div class="actions"><button class="btn" data-act="handAdd">Add transaction</button></div></div>' + hero + oweCallout(ai) + kp +
     '<div class="grid g21">' + c1 + c3 + '</div><div class="grid g2">' + c2 + c6 + '</div><div class="grid g2">' + c4 + c5 + '</div><div class="grid g2">' + c7 + c8 + '</div><div class="grid">' + c9 + '</div>';
 }
 function goalMini(gc) {

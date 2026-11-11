@@ -160,3 +160,45 @@ def test_printed_tables_fit_with_a_wider_fallback_font(loaded):
         over = loaded.evaluate("()=>document.documentElement.scrollWidth-document.documentElement.clientWidth")
         assert over <= 1, (tab, over)
         loaded.emulate_media(media="screen")
+
+
+def test_rules_and_overrides_carry_a_subcategory(loaded):
+    r = js(loaded, """()=>{S.cfg.categories['Food']=['Bakery','Milk']; const e=R.led.find(x=>x.kind==='hhx'&&x.src==='Bank'&&!x.atm&&!x.splitIdx);
+        S.cfg.rules.unshift({kw:e.payee.toLowerCase(),cat:'Food',sub:'Bakery'}); delete S.overlay[e.id]; refresh(); const a=R.byId[e.id];
+        return {id:e.id,cat:a.cat,sub:a.sub,label:catLabel(a)}}""")
+    assert r["cat"] == "Food" and r["sub"] == "Bakery" and r["label"] == "Food › Bakery"
+    loaded.evaluate("id=>{goto('transactions'); openModal(txModal(id));}", r["id"])
+    loaded.select_option("#tx-cat", "Food|||Milk")
+    loaded.click("#modalRoot [data-act=saveTx]")
+    a = js(loaded, "id=>({cat:R.byId[id].cat,sub:R.byId[id].sub,ov:S.overlay[id]})", r["id"])
+    assert a["cat"] == "Food" and a["sub"] == "Milk" and a["ov"]["sub"] == "Milk"
+
+
+def test_renamed_medical_category_is_used(loaded):
+    cat = js(loaded, """()=>{const c=S.cfg.categories; c['Medical & Healthcare']=c['Medical']; delete c['Medical']; S.cfg.rules=S.cfg.rules.filter(r=>r.cat!=='Medical');
+        S.cash.push({id:'m1',date:R.months[R.N-1]+'-05',dir:'Payment',by:S.cfg.spender,person:'',mode:'Cash',acct:'Cash',cls:'Medical',cat:'',sub:'',med:'',src:'Cash in hand',desc:'x',amt:10});
+        refresh(); return R.byId['m1'].cat}""")
+    assert cat == "Medical & Healthcare"
+
+
+def test_paid_from_his_pocket_can_count_as_investment(loaded):
+    """A brother pays a family bill himself and it is credited to his investment share (not his household dues)."""
+    before = js(loaded, "()=>({inv:R.C.Aman.Investment.reduce((a,x)=>a+x.paid,0),hh:R.C.Aman.Household.reduce((a,x)=>a+x.paid,0),bank:R.bankCum[R.N-1],cash:R.cashCum[R.N-1],spend:R.F.H.reduce((a,x)=>a+x.spend,0),exc:R.exceptions.length})")
+    js(loaded, """()=>{S.cash.push({id:'dx',date:R.months[R.N-1]+'-10',dir:'Direct',by:'Aman',person:'Aman',mode:'Cash',acct:'Direct',cls:'Household',cat:'Groceries',sub:'',med:'',src:'Cash in hand',credit:'Investment',desc:'Hospital meals',amt:4000});refresh();}""")
+    after = js(loaded, "()=>({inv:R.C.Aman.Investment.reduce((a,x)=>a+x.paid,0),hh:R.C.Aman.Household.reduce((a,x)=>a+x.paid,0),bank:R.bankCum[R.N-1],cash:R.cashCum[R.N-1],spend:R.F.H.reduce((a,x)=>a+x.spend,0),bad:R.exceptions.filter(e=>/Manual bank entry/.test(e.title)).length,checks:R.checks.filter(c=>c.status==='Difference').length})")
+    assert after["inv"] - before["inv"] == 4000 and after["hh"] == before["hh"]
+    assert after["spend"] - before["spend"] == 4000
+    assert after["bank"] == before["bank"] and after["cash"] == before["cash"]
+    assert after["bad"] == 0 and after["checks"] == 0          # not a "manual bank entry", and everything still reconciles
+
+
+def test_overview_says_what_the_spending_funds_owe_investment(loaded):
+    assert js(loaded, "()=>fundsOwe(R.N-1)") is None and not loaded.query_selector(".callout.owe")
+    o = js(loaded, """()=>{const over=R.F.H[R.N-1].close+50000; S.cash.push({id:'big',date:R.months[R.N-1]+'-12',dir:'Direct',by:'Aman',person:'Aman',mode:'Cash',acct:'Direct',cls:'Household',cat:'Groceries',sub:'',med:'',src:'',credit:'Investment',desc:'x',amt:over});
+        refresh(); goto('overview'); return fundsOwe(R.N-1)}""")
+    assert abs(o["owed"] - 50000) < 0.01 and abs(o["short"]["H"] - 50000) < 0.01
+    assert abs(o["rest"] - max(0, o["owed"] - o["arrears"])) < 0.01 and abs(o["each"] * 4 - o["rest"]) < 0.05
+    text = loaded.inner_text(".callout.owe")
+    assert "owe the investment fund" in text and "from each of the 4 brothers" in text
+    for tab in ("household", "investments"):
+        loaded.evaluate("t=>goto(t)", tab); assert loaded.query_selector(".callout.owe"), tab

@@ -1,5 +1,13 @@
 # Changelog
 
+## 1.6.0
+- Subcategories everywhere a category is chosen for a bank transaction: the transaction window, payee rules in Setup and Categorise payees offer `Category › Subcategory`. Rules can carry a subcategory. Transactions show it and search finds it.
+- Your own category names are respected: if Medical or Bank Charges were renamed (for example "Medical & Healthcare"), medical and bank-charge rows use that name instead of a built-in one.
+- Cash ledger → Paid directly by a brother has **Counts as his**: household or investment contribution. Use it when a brother pays a family bill himself and it should be credited to his investment share.
+- Overview, Household and Investments show what the spending funds (household, medical, special) owe the investment fund, the household contributions still outstanding, and the equal top-up per brother that clears the rest.
+- Fixed: importing a bank statement over an Excel history added a bank row again when the Excel sheet had recorded it as several lines (a deposit split between household and investment). Lines of the same day that add up to the bank row now count as the same money.
+- Fixed: entries paid directly by a brother were listed in Controls as "Manual bank entry not yet in the statement". They never go through the bank.
+
 ## 1.5.1
 - Entering transactions by hand, one after another: the review window of a hand entry has **Approve and add another** (the next one starts on the same date and direction), and **Add transaction** is on Overview and Transactions as well as To review. Before, after the first entry you were left on Overview with no way to add the next; on a phone the only button was under More → To review.
 - The hand-entry form has **It was cash instead**, which opens the cash entry form.

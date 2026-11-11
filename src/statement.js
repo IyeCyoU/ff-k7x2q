@@ -84,18 +84,39 @@ function parseBankStatement(buf, fileName) {
 }
 
 /* ---- deciding what is new ---- */
+/* the smallest group of 2 to 6 items whose amounts add up to the target, or null */
+function subsetSum(items, target) {
+  const n = items.length;
+  for (let k = 2; k <= Math.min(6, n); k++) {
+    const idx = Array.from({length: k}, (_, i) => i);
+    for (;;) {
+      if (Math.abs(idx.reduce((a, i) => a + items[i].amt, 0) - target) < 0.005) return idx.map(i => items[i]);
+      let i = k - 1; while (i >= 0 && idx[i] === n - k + i) i--;
+      if (i < 0) break;
+      idx[i]++; for (let j = i + 1; j < k; j++) idx[j] = idx[j - 1] + 1;
+    }
+  }
+  return null;
+}
 function planStatementImport(p) {
   const have = new Set(S.stmt.map(t => t.id));
   const dupes = p.rows.filter(t => have.has(t.id));
   // rows your Excel history already has (same date and amount) are not added twice
   const wbLast = S.tx.reduce((m, t) => t.date > m ? t.date : m, '');
-  const pool = {}; for (const t of S.tx) { const k = t.date + '|' + r2(t.amt); pool[k] = (pool[k] || 0) + 1; }
-  const inWb = [], fresh = [];
+  const byDate = {}; for (const t of S.tx) (byDate[t.date] = byDate[t.date] || []).push({amt: r2(t.amt), used: false});
+  const inWb = [], maybe = [];
   for (const t of p.rows) {
     if (have.has(t.id)) continue;
-    const k = t.date + '|' + t.amt;
-    if (wbLast && t.date <= wbLast && pool[k] > 0) { pool[k]--; inWb.push(t); continue; }
-    fresh.push(t);
+    const m = wbLast && t.date <= wbLast ? (byDate[t.date] || []).find(x => !x.used && x.amt === t.amt) : null;
+    if (m) { m.used = true; inWb.push(t); } else maybe.push(t);
+  }
+  // one bank row that the Excel history recorded as several lines (a deposit split between household and
+  // investment, say): the lines of that day that add up to it are the same money
+  const fresh = [];
+  for (const t of maybe) {
+    const left = wbLast && t.date <= wbLast ? (byDate[t.date] || []).filter(x => !x.used) : [];
+    const combo = left.length >= 2 && left.length <= 12 ? subsetSum(left, t.amt) : null;
+    if (combo) { combo.forEach(x => { x.used = true; }); inWb.push(t); } else fresh.push(t);
   }
   // hand entries this statement now confirms: same amount, within 5 days; your who/what for them is kept
   const hand = S.stmt.filter(t => t.manual), used = new Set(), matched = [];
@@ -213,7 +234,8 @@ function stmtEntries(t, n) {
 /* A brother paid for something himself (cash, his own card, his own account): it is his contribution and
    the family's expense at the same time, so the family's cash and bank are not touched. */
 function directEntries(c) {
-  const pair = {Household: ['hhc', 'hhx'], Medical: ['hhc', 'med'], Investment: ['invc', 'invd'], Other: ['spc', 'spx']}[c.cls] || ['hhc', 'hhx'];
+  const pair = ({Household: ['hhc', 'hhx'], Medical: ['hhc', 'med'], Investment: ['invc', 'invd'], Other: ['spc', 'spx']}[c.cls] || ['hhc', 'hhx']).slice();
+  if (c.credit === 'Investment') pair[0] = 'invc'; else if (c.credit === 'Household') pair[0] = 'hhc';   // e.g. he paid a family bill and it counts towards his investment share
   const base = {src: 'Cash', date: c.date, month: c.date.slice(0, 7), by: c.person, type: 'Paid directly', ttype: 'Cash Payment', purpose: c.cls, desc: c.desc, mode: c.mode,
     atm: false, memo: false, direct: true, flags: [], note: c.note || '', ref: c.ref || '', acct: 'Direct', inv: '', cashEntry: c};
   const treat = pair[1] === 'med' ? (c.med || S.cfg.medicalDefault) : null;

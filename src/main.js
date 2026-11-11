@@ -305,7 +305,7 @@ const ACT = {
       if (err.length) { const m = $('#tx-msg'); m.style.display = ''; m.innerHTML = err.map(esc).join('<br>'); return; }
       o.split = parts;
     }
-    if (g('#tx-cat')) o.cat = g('#tx-cat'); if (g('#tx-mode')) o.mode = g('#tx-mode'); if (g('#tx-med')) o.med = g('#tx-med');
+    if (g('#tx-cat')) { const cs = splitCat(g('#tx-cat')); o.cat = cs.cat; if (cs.sub) o.sub = cs.sub; } if (g('#tx-mode')) o.mode = g('#tx-mode'); if (g('#tx-med')) o.med = g('#tx-med');
     if ($('#tx-inv') && g('#tx-inv') !== 'Deployed') o.inv = g('#tx-inv'); if (g('#tx-note').trim()) o.note = g('#tx-note').trim();
     if (Object.keys(o).length) S.overlay[id] = o; else delete S.overlay[id];
     closeModal(); persist(); refresh(); toast('Saved');
@@ -328,7 +328,7 @@ const ACT = {
     const acct = dir === 'Direct' ? 'Direct' : g('#cf-acct') === 'Cash' ? 'Cash' : ACCOUNTS[1];
     if (errs.length) { msg.style.display = ''; msg.className = 'callout neg'; msg.innerHTML = errs.map(esc).join('<br>'); return; }
     if (acct === 'Cash' && dir !== 'Direct' && g('#cf-mode') !== 'Cash') warns.push('The payment mode is ' + g('#cf-mode') + ', which normally shows in the bank statement. Change the mode to Cash if this was real cash.');
-    const entry = {id: id || uid(), date: cfDate, dir, by: dir === 'Direct' ? g('#cf-person') : g('#cf-by'), person: g('#cf-person'), mode: g('#cf-mode'), acct, cls, cat: dir !== 'Receipt' && cls !== 'Investment' ? g('#cf-cat') : '', sub: g('#cf-sub'), med: cls === 'Medical' ? g('#cf-med') : '', src: dir === 'Payment' ? g('#cf-src') : 'Cash in hand', desc: g('#cf-desc').trim(), amt: r2(amt), ref: g('#cf-ref').trim(), note: g('#cf-note').trim()};
+    const entry = {id: id || uid(), date: cfDate, dir, by: dir === 'Direct' ? g('#cf-person') : g('#cf-by'), person: g('#cf-person'), mode: g('#cf-mode'), acct, cls, cat: dir !== 'Receipt' && cls !== 'Investment' ? g('#cf-cat') : '', sub: g('#cf-sub'), med: cls === 'Medical' ? g('#cf-med') : '', src: dir === 'Payment' ? g('#cf-src') : 'Cash in hand', credit: dir === 'Direct' ? g('#cf-credit') : '', desc: g('#cf-desc').trim(), amt: r2(amt), ref: g('#cf-ref').trim(), note: g('#cf-note').trim()};
     if (!/^ATM/i.test(entry.src)) { const dup = possibleBankDup(entry); if (dup.length) warns.push('A bank row of the same amount exists on ' + dFull(dup[0].date) + ' (' + dup[0].person + '). If this is the same money, do not add it here.'); }
     if (warns.length && !el.dataset.ok) { msg.style.display = ''; msg.className = 'callout warn'; msg.innerHTML = warns.map(esc).join('<br>') + '<br><b>Click Save again to keep it anyway.</b>'; el.dataset.ok = '1'; return; }
     const i = S.cash.findIndex(c => c.id === entry.id); if (i >= 0) S.cash[i] = entry; else S.cash.push(entry);
@@ -360,7 +360,7 @@ const ACT = {
     for (const k of add) S.cfg.categories[k] = DEFAULT_CATS[k].slice();
     persist(); refresh(); toast(add.length + ' default categor' + (add.length === 1 ? 'y' : 'ies') + ' added back');
   },
-  addRule: () => { const k = $('#rl-k').value.trim(); if (!k) { toast('Enter the text to match.'); return; } S.cfg.rules.push({kw: k, cat: $('#rl-c').value}); persist(); refresh(); },
+  addRule: () => { const k = $('#rl-k').value.trim(); if (!k) { toast('Enter the text to match.'); return; } const cs = splitCat($('#rl-c').value); S.cfg.rules.push(Object.assign({kw: k, cat: cs.cat}, cs.sub ? {sub: cs.sub} : {})); persist(); refresh(); },
   delRule: el => { S.cfg.rules.splice(+el.dataset.arg, 1); persist(); refresh(); },
   backup: () => backupDialog(),
   pickBackup: () => $('#file').click(),
@@ -422,6 +422,7 @@ document.addEventListener('change', ev => {
     const id = t.dataset.qcat !== undefined ? t.dataset.qcat : t.dataset.qmode, key = t.dataset.qcat !== undefined ? 'cat' : 'mode';
     const ov = Object.assign({}, S.overlay[id]);
     if (t.value) ov[key] = t.value; else delete ov[key];
+    if (key === 'cat') delete ov.sub;   // the quick box picks a category only
     if (Object.keys(ov).length) S.overlay[id] = ov; else delete S.overlay[id];
     persist(); refresh(); return;
   }
@@ -431,7 +432,7 @@ document.addEventListener('change', ev => {
     if (EXTRA_KEYS.includes(k)) { const btn = $('.more-wrap [data-act="moreFilters"]'); if (btn) { const n = activeExtraCount(); btn.innerHTML = 'Filters' + (n ? ' <span class="chipcount">' + n + '</span>' : ''); btn.classList.toggle('on', n > 0); } }
     UI.txpage = 0; renderView(); return;
   }
-  if (t.dataset.ruleP !== undefined || t.dataset.rulePayee !== undefined) { if (!t.value) return; S.cfg.rules.unshift({kw: t.dataset.rulePayee.toLowerCase(), cat: t.value}); persist(); refresh(); toast('Rule added for ' + t.dataset.rulePayee); return; }
+  if (t.dataset.ruleP !== undefined || t.dataset.rulePayee !== undefined) { if (!t.value) return; const cs = splitCat(t.value); S.cfg.rules.unshift(Object.assign({kw: t.dataset.rulePayee.toLowerCase(), cat: cs.cat}, cs.sub ? {sub: cs.sub} : {})); persist(); refresh(); toast('Rule added for ' + t.dataset.rulePayee); return; }
   if (t.dataset.member !== undefined) {
     const i = +t.dataset.member, old = S.cfg.brothers[i], v = t.value.trim();
     if (v && v !== old && S.cfg.brothers.includes(v)) { toast(v + ' is already in the list.'); renderView(); return; }

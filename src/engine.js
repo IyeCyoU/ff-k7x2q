@@ -20,11 +20,24 @@ function modeOf(desc, type) {
   if (/^(mom|household|spent|initial)/i.test(d)) return 'Bank';
   return 'Other';
 }
-function ruleCat(desc) {
+function ruleFor(desc) {
   const d = (desc || '').toLowerCase();
-  for (const r of S.cfg.rules) if (r.kw && d.includes(r.kw.toLowerCase())) return r.cat;
+  for (const r of S.cfg.rules) if (r.kw && d.includes(r.kw.toLowerCase())) return r;
   return null;
 }
+const ruleCat = desc => (ruleFor(desc) || {}).cat || null;
+/* The built-in names (Medical, Bank Charges) may have been renamed in Setup, e.g. "Medical & Healthcare":
+   use the family's own category when one clearly matches. */
+function catNamed(re, fallback) { return Object.keys(S.cfg.categories).find(c => re.test(c)) || fallback; }
+/* one <select> for category and subcategory: "Cat" or "Cat › Sub"; the value is cat, or cat|||sub */
+const CATSEP = '|||';
+function catOptions(curCat, curSub) {
+  const cur = curCat ? curCat + (curSub ? CATSEP + curSub : '') : '';
+  return Object.entries(S.cfg.categories).map(([c, subs]) => '<option value="' + esc(c) + '"' + (cur === c ? ' selected' : '') + '>' + esc(c) + '</option>' +
+    (subs || []).map(s => '<option value="' + esc(c + CATSEP + s) + '"' + (cur === c + CATSEP + s ? ' selected' : '') + '>' + esc(c + ' › ' + s) + '</option>').join('')).join('');
+}
+const splitCat = v => { const i = (v || '').indexOf(CATSEP); return i < 0 ? {cat: v || '', sub: ''} : {cat: v.slice(0, i), sub: v.slice(i + CATSEP.length)}; };
+const catLabel = e => e.cat ? e.cat + (e.sub ? ' › ' + e.sub : '') : '';
 function fundOf(kind, treat) {
   switch (kind) {
     case 'hhc': case 'hhx': case 'rcpt': case 'chg': case 'xfer': return 'H';
@@ -49,14 +62,18 @@ function classifyBank(t) {
   else { kind = 'oth'; flags.push('Missing classification'); }
   const treat = kind === 'med' ? (t.med || ov.med || S.cfg.medicalDefault) : kind === 'ext' ? (t.reason || OUTSIDE_REASONS[3]) : null;
   const atm = /^atw/i.test(t.desc);
-  let cat = '';
+  let cat = '', sub = '';
   if (kind === 'hhx' || kind === 'chg' || kind === 'med' || kind === 'spx') {
-    cat = ov.cat || t.cat || (kind === 'med' ? 'Medical' : kind === 'chg' ? 'Bank Charges' : atm ? 'Cash withdrawn (ATM)' : ruleCat(t.desc) || 'Uncategorised');
+    const rule = atm ? null : ruleFor(t.desc);
+    if (ov.cat || t.cat) { cat = ov.cat || t.cat; sub = ov.cat ? (ov.sub || '') : ''; }
+    else if (kind === 'chg') cat = catNamed(/bank/i, 'Bank Charges');
+    else if (rule) { cat = rule.cat; sub = rule.sub || ''; }
+    else cat = kind === 'med' ? catNamed(/medical/i, 'Medical') : atm ? 'Cash withdrawn (ATM)' : 'Uncategorised';
   }
   const ttype = t.type === 'Internal Transfer' ? 'Internal Transfer' : a >= 0 ? 'Deposit' : 'Withdrawal';
   return {
     id: t.id, src: 'Bank', date: t.date, month: t.date.slice(0, 7), person: t.dep, type: t.type, ttype, purpose: P, desc: t.desc, amt: a,
-    kind, fund: fundOf(kind, treat), treat, cat, mode: ov.mode || modeOf(t.desc, t.type), payee: payeeOf(t.desc), atm, memo: false,
+    kind, fund: fundOf(kind, treat), treat, cat, sub, mode: ov.mode || modeOf(t.desc, t.type), payee: payeeOf(t.desc), atm, memo: false,
     flags, note: ov.note || '', inv: ov.inv || (kind === 'invd' || kind === 'invr' ? 'Deployed' : ''), ov: !!S.overlay[t.id], row: t.row
   };
 }
@@ -69,7 +86,7 @@ function classifyCash(c) {
   const treat = kind === 'med' ? (c.med || S.cfg.medicalDefault) : null;
   const person = rec ? c.person : (c.person || c.by);
   let cat = '';
-  if (kind === 'hhx' || kind === 'med' || kind === 'spx') cat = c.cat || (kind === 'med' ? 'Medical' : 'Uncategorised');
+  if (kind === 'hhx' || kind === 'med' || kind === 'spx') cat = c.cat || (kind === 'med' ? catNamed(/medical/i, 'Medical') : 'Uncategorised');
   return {
     id: c.id, src: 'Cash', date: c.date, month: (c.date || '').slice(0, 7), person, by: c.by, type: rec ? 'Cash Receipt' : 'Cash Payment', ttype: rec ? 'Cash Receipt' : 'Cash Payment',
     purpose: c.cls, desc: c.desc, amt, kind, fund: memo ? null : fundOf(kind, treat), treat, cat, sub: c.sub, mode: c.mode, payee: c.person || '', atm: false, memo,
@@ -77,6 +94,21 @@ function classifyCash(c) {
   };
 }
 
+/* ============ what the spending funds owe the investment fund ============
+   When household, medical or special spending runs ahead of what was paid in for it, the bank account covers it
+   with investment money. This says how much, and what would put it back. */
+function fundsOwe(ai) {
+  if (!R || !R.N || ai < 0) return null;
+  const tol = S.cfg.tol, short = {}, names = {H: 'household', M: 'medical', S: 'special'};
+  let total = 0;
+  for (const f of ['H', 'M', 'S']) { const c = R.F[f][ai].close; if (c < -tol) { short[f] = -c; total += -c; } }
+  const inv = R.F.I[ai].close;
+  if (total <= tol || inv <= tol) return null;
+  const owed = r2(Math.min(total, inv)), n = S.cfg.brothers.length || 1;
+  const arrears = r2(S.cfg.brothers.reduce((a, b) => a + (R.C[b].Household[ai].out || 0), 0));
+  const rest = r2(Math.max(0, owed - arrears));
+  return {owed, short, names, inv, arrears, rest, each: r2(rest / n), n, held: r2(R.famCum[ai])};
+}
 /* ============ contribution plan ============ */
 function planFor(b, t, m) {
   let best = null;
@@ -367,7 +399,7 @@ function buildExceptions() {
     if (c.acct === 'Cash' && c.mode !== 'Cash') add({sev: 'Medium', code: 'Duplicate possibility', title: 'Cash-ledger entry paid by ' + c.mode + ' on ' + dFull(c.date) + ' (' + inr(c.amt) + ')', detail: 'Non-cash payments normally appear in the bank statement already. Check it is not double counted.', ids: [c.id], amount: c.amt, count: 1, tab: 'cash', sig: 'mode' + c.id});
     const dup = possibleBankDup(c);
     if (dup.length && !/^ATM/i.test(c.src || '')) add({sev: 'Medium', code: 'Duplicate possibility', title: 'Cash entry of ' + inr(c.amt) + ' on ' + dFull(c.date) + ' matches a bank row', detail: 'Bank row: ' + dFull(dup[0].date) + ', ' + inr(dup[0].amt) + ', ' + dup[0].person + '. Remove the cash entry if it is the same money.', ids: [c.id, dup[0].id], amount: c.amt, count: 1, tab: 'cash', sig: 'dup' + c.id});
-    if (c.acct !== 'Cash') add({sev: 'Low', code: 'Unreconciled amount', title: 'Manual bank entry of ' + inr(c.amt) + ' on ' + dFull(c.date) + ' is not yet in the statement', detail: 'Remove it after the statement is imported so it is not counted twice.', ids: [c.id], amount: c.amt, count: 1, tab: 'cash', sig: 'pend' + c.id});
+    if (c.acct !== 'Cash' && c.dir !== 'Direct') add({sev: 'Low', code: 'Unreconciled amount', title: 'Manual bank entry of ' + inr(c.amt) + ' on ' + dFull(c.date) + ' is not yet in the statement', detail: 'Remove it after the statement is imported so it is not counted twice.', ids: [c.id], amount: c.amt, count: 1, tab: 'cash', sig: 'pend' + c.id});
     if (c.dir === 'Payment' && c.cls !== 'Investment' && (!c.cat || c.cat === 'Uncategorised')) add({sev: 'Low', code: 'Missing category', title: 'Cash payment on ' + dFull(c.date) + ' has no category', detail: c.desc, ids: [c.id], amount: -c.amt, count: 1, tab: 'cash', sig: 'cat' + c.id});
   }
   // ATM cash explained?
