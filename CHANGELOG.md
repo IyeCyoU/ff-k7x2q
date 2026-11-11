@@ -5,6 +5,7 @@
 - Your own category names are respected: if Medical or Bank Charges were renamed (for example "Medical & Healthcare"), medical and bank-charge rows use that name instead of a built-in one.
 - Cash ledger → Paid directly by a brother has **Counts as his**: household or investment contribution. Use it when a brother pays a family bill himself and it should be credited to his investment share.
 - Overview, Household and Investments show what the spending funds (household, medical, special) owe the investment fund, the household contributions still outstanding, and the equal top-up per brother that clears the rest.
+- Investment outstanding is measured on net investment: money returned to a brother is taken off what he has paid in, so his outstanding rises by that amount.
 - Fixed: importing a bank statement over an Excel history added a bank row again when the Excel sheet had recorded it as several lines (a deposit split between household and investment). Lines of the same day that add up to the bank row now count as the same money.
 - Fixed: entries paid directly by a brother were listed in Controls as "Manual bank entry not yet in the statement". They never go through the bank.
 

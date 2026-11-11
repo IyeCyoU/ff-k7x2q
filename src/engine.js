@@ -200,7 +200,8 @@ function derive() {
   R.C = {};
   const types = ['Household', 'Investment'];
   const paidMap = {};
-  for (const e of led) if ((e.kind === 'hhc' || e.kind === 'invc') && isBro(e.person)) {
+  // investment money returned to a brother counts against what he has paid in: net invested is what the plan is measured on
+  for (const e of led) if ((e.kind === 'hhc' || e.kind === 'invc' || e.kind === 'invr') && isBro(e.person)) {
     const t = e.kind === 'hhc' ? 'Household' : 'Investment', k = e.person + '|' + t + '|' + e.month; paidMap[k] = (paidMap[k] || 0) + e.amt;
   }
   for (const b of B) {
@@ -439,8 +440,8 @@ function buildChecks() {
     let req = 0, paid = 0, out = 0, adv = 0;
     for (const b of B) { const x = R.C[b][t][last]; req += x.cumReq; paid += x.cumPaid; out += x.out; adv += x.adv; }
     add(t + ' contributions: required − paid = outstanding − advance', r2(req - paid), r2(out - adv), 'Required ' + inr(req) + ', paid ' + inr(paid));
-    const src = sum(R.led.filter(e => e.kind === (t === 'Household' ? 'hhc' : 'invc') && isBro(e.person)), e => e.amt);
-    add(t + ' contributions in tracker match source rows', r2(src), r2(paid), 'Tracker total vs transactions tagged ' + (t === 'Household' ? 'Family Expenses' : 'Investments') + ' deposits');
+    const src = sum(R.led.filter(e => (t === 'Household' ? e.kind === 'hhc' : e.kind === 'invc' || e.kind === 'invr') && isBro(e.person)), e => e.amt);
+    add(t + ' contributions in tracker match source rows', r2(src), r2(paid), 'Tracker total vs transactions tagged ' + (t === 'Household' ? 'Family Expenses deposits' : 'Investments deposits, less money returned to a brother'));
   }
   // household roll-forward
   const H = R.F.H; let o = 0, contrib = 0, rc = 0, sp = 0, adj = 0;

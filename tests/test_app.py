@@ -202,3 +202,14 @@ def test_overview_says_what_the_spending_funds_owe_investment(loaded):
     assert "owe the investment fund" in text and "from each of the 4 brothers" in text
     for tab in ("household", "investments"):
         loaded.evaluate("t=>goto(t)", tab); assert loaded.query_selector(".callout.owe"), tab
+
+
+def test_returned_investment_money_raises_what_he_still_owes(loaded):
+    """Net investment = deposits minus what was returned to him; outstanding is measured on that."""
+    r = js(loaded, """()=>{const l=R.N-1, b='Bilal', before=R.C[b].Investment[l], pos0=before.closePos;
+        const e=R.led.find(x=>x.kind==='invd'&&x.person===b); S.overlay[e.id]={inv:'Returned to brother'}; refresh();
+        const after=R.C[b].Investment[l];
+        return {amt:-e.amt, pos0, pos1:after.closePos, net:R.invNet[b][l], paid:after.cumPaid, diff:R.checks.filter(c=>c.status==='Difference').map(c=>c.name)}}""")
+    assert r["amt"] > 0 and abs((r["pos0"] - r["pos1"]) - r["amt"]) < 0.01      # his position is worse by exactly what he took back
+    assert abs(r["paid"] - r["net"]) < 0.01                                      # paid in the tracker = net invested
+    assert r["diff"] == []
