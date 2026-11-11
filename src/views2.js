@@ -18,13 +18,13 @@ function vHousehold() {
   const un = {}; R.led.forEach(e => { if (e.fund === 'H' && e.kind === 'hhx' && e.cat === 'Uncategorised') { const k = e.payee; (un[k] = un[k] || {p: k, n: 0, v: 0}).n++; un[k].v += -e.amt; } });
   const ul = Object.values(un).sort((a, b) => b.v - a.v);
   const cats = Object.keys(S.cfg.categories);
-  const pc = panel('Categorise payees', ul.length ? '<div class="small mb">Pick a category and every past and future payment to that payee follows. Nothing in your transactions changes; rules live in Setup.</div>' + tbl([{h: 'Payee', f: x => esc(x.p)}, {h: 'Payments', cls: 'num', f: x => x.n}, {h: 'Total', cls: 'num', f: x => inr(x.v)}, {h: 'Category', f: x => '<select data-rule-payee="' + esc(x.p) + '" aria-label="Category for ' + esc(x.p) + '"><option value="">Choose…</option>' + cats.map(c => '<option>' + esc(c) + '</option>').join('') + '</select>'}], ul.slice(0, 25), {maxH: 420}) + (ul.length > 25 ? '<div class="small mt">Showing the 25 largest of ' + ul.length + ' payees.</div>' : '') : '<div class="small">Every household expense has a category.</div>', {note: ul.length + ' payees · ' + inr(ul.reduce((a, x) => a + x.v, 0)) + ' uncategorised'});
+  const pc = panel('Categorise payees', ul.length ? '<div class="small mb">Pick a category and every past and future payment to that payee follows. Nothing in your transactions changes; rules live in Setup.</div>' + tbl([{h: 'Payee', f: x => esc(x.p)}, {h: 'Payments', cls: 'num', f: x => x.n}, {h: 'Total', cls: 'num', f: x => inr(x.v)}, {h: 'Category', f: x => '<select data-rule-payee="' + esc(x.p) + '" aria-label="Category for ' + esc(x.p) + '"><option value="">Choose…</option>' + catOptions('', '') + '</select>'}], ul.slice(0, 25), {maxH: 420}) + (ul.length > 25 ? '<div class="small mt">Showing the 25 largest of ' + ul.length + ' payees.</div>' : '') : '<div class="small">Every household expense has a category.</div>', {note: ul.length + ' payees · ' + inr(ul.reduce((a, x) => a + x.v, 0)) + ' uncategorised'});
   const med = R.led.filter(e => e.kind === 'med'), ms = {};
   MEDTREAT.forEach(t => ms[t] = sum(med.filter(e => e.treat === t), e => -e.amt));
   const medP = panel('Medical treatment', '<div class="kv">' + MEDTREAT.map(t => '<div class="r"><span>' + t + '</span><b>' + inr(ms[t]) + '</b></div>').join('') + '<div class="r tot"><span>All medical expenses</span><b>' + inr(sum(med, e => -e.amt)) + '</b></div></div><div class="small mt">Default treatment: <b>' + esc(S.cfg.medicalDefault) + '</b> (Setup). Change one payment at a time from Transactions. ' + (H[ai].close < 0 && ms.Household > 0 ? 'Treating medical as separate would lift the household fund by ' + inr(ms.Household) + ' to ' + inr(H[ai].close + ms.Household) + ', with a separate medical fund at −' + inr(ms.Household) + '.' : '') + '</div>', {note: 'Changes reports, never the transactions'});
   CHARTS = [];
   const ch = panel('Household balance', chartSlot('hb', (el, W) => lineChart(el, W, {labels: ti.map(i => mLabel(R.months[i])), series: [{name: 'Household closing balance', color: 'var(--accent)', values: ti.map(i => H[i].close), area: true}], area: true, endLabel: true, aria: 'Household closing balance'}), 220));
-  return '<div class="vh"><h1>Household fund</h1><span class="sub">Contributions in, spending out</span></div><div class="grid g12"><div>' + panel('Fund movement, ' + (UI.f.year === 'All' ? 'all time' : UI.f.year), eqn) + '</div>' + ch + '</div>' + panel('Month by month', mt) + '<div class="grid g2 mt">' + ct + medP + '</div>' + pc;
+  return '<div class="vh"><h1>Household fund</h1><span class="sub">Contributions in, spending out</span></div>' + oweCallout(ai) + '<div class="grid g12"><div>' + panel('Fund movement, ' + (UI.f.year === 'All' ? 'all time' : UI.f.year), eqn) + '</div>' + ch + '</div>' + panel('Month by month', mt) + '<div class="grid g2 mt">' + ct + medP + '</div>' + pc;
 }
 
 /* ============ INVESTMENTS ============ */
@@ -40,7 +40,7 @@ function vInvest() {
   const kvs = '<div class="kv"><div class="r"><span>Opening investment balance</span><b>' + inr(I[0].open) + '</b></div><div class="r"><span>+ Contributions received</span><b>' + inr(contrib) + '</b></div><div class="r"><span>− Investment deployed</span><b>' + inr(deployed) + '</b></div><div class="r"><span>− Withdrawals returned to brothers</span><b>' + inr(retd) + '</b></div><div class="r"><span>± Adjustments</span><b>' + inr(0) + '</b></div><div class="r tot"><span>Closing investment balance (awaiting deployment)</span><b>' + inr(I[ai].close) + '</b></div></div>' +
     '<div class="kv mt"><div class="r"><span>Total contributed, net of returns</span><b>' + inr(own.total) + '</b></div><div class="r"><span>Deployed so far</span><b>' + inr(deployed) + '</b></div><div class="r"><span>Current investment pool (contributed − returned)</span><b>' + inr(own.total) + '</b></div></div>';
   const H = R.F.H[ai], fam = R.ownCum[ai];
-  const call = (H.close < -tol && I.close > 0) ? '<div class="callout warn"><b>Where the investment money actually is.</b> The ledger says ' + inr(I.close) + ' is waiting to be deployed, but the bank and cash hold only ' + inr(fam) + '. The household fund is ' + inr(-H.close) + ' overdrawn, so that gap has effectively been funded from investment contributions. Ownership percentages are unaffected. Decide whether the household fund should repay it.</div>' : '';
+  const call = oweCallout(ai);
   const ti = trendIdx();
   const mt = tbl([{h: 'Month', f: i => '<b>' + mLong(R.months[i]) + '</b>'}, {h: 'Opening', cls: 'num', f: i => inr(I[i].open)}, {h: 'Contributions', cls: 'num', f: i => inr(I[i].contrib)}, {h: 'Deployed', cls: 'num', f: i => inr(I[i].deployed)}, {h: 'Withdrawn', cls: 'num', f: i => inr(I[i].returned)}, {h: 'Closing', cls: 'num', f: i => '<b>' + inr(I[i].close) + '</b>'}], ti.slice().reverse(), {maxH: 380});
   const depl = R.led.filter(e => (e.kind === 'invd' || e.kind === 'invr') && e.month <= P.asOf).slice().reverse();
@@ -163,7 +163,7 @@ function txRows() {
   if (UI.txsrc !== 'All') rows = rows.filter(e => e.src === UI.txsrc);
   if (UI.txcls === 'Needs review') rows = rows.filter(e => e.flags.length || e.kind === 'oth' || e.cat === 'Uncategorised');
   else if (UI.txcls !== 'All') rows = rows.filter(e => e.kind === UI.txcls);
-  if (q) rows = rows.filter(e => (e.desc + ' ' + e.person + ' ' + e.payee + ' ' + e.cat + ' ' + e.purpose + ' ' + e.amt).toLowerCase().includes(q));
+  if (q) rows = rows.filter(e => (e.desc + ' ' + e.person + ' ' + e.payee + ' ' + e.cat + ' ' + (e.sub || '') + ' ' + e.purpose + ' ' + e.amt).toLowerCase().includes(q));
   const dflt = (a, b) => a.date < b.date ? 1 : a.date > b.date ? -1 : (b.row || 0) - (a.row || 0);
   const st = UI.txsort;
   if (!st) return rows.slice().sort(dflt);
@@ -183,8 +183,8 @@ function txTableHTML() {
   const t = tbl([
     {h: 'Date', k: 'date', f: e => dFull(e.date)}, {h: 'Source', k: 'src', f: e => pill(e.manual ? 'By hand' : e.src, e.src === 'Cash' ? 'warn' : e.manual ? 'info' : '') + (e.stmt && !e.reviewed ? '<br>' + pill('Not reviewed', 'warn') : '')}, {h: 'Person', k: 'person', f: e => esc(e.person || '')}, {h: 'Purpose (original)', k: 'purpose', f: e => esc(e.purpose)},
     {h: 'Treated as', k: 'kind', f: e => esc(KIND_LABEL[e.kind]) + (e.treat ? '<br><span class="small">' + esc(e.treat) + '</span>' : '') + (e.memo ? '<br><span class="small">memo only</span>' : '')}, {h: 'Category', k: 'cat', f: e => {
-      if (e.src !== 'Bank' || e.atm || e.splitIdx || !['hhx', 'med', 'spx', 'chg'].includes(e.kind)) return e.cat ? (e.cat === 'Uncategorised' ? '<span class="mute">Uncategorised</span>' : esc(e.cat)) : '';
-      return qSelect('qcat', e.id, Object.keys(S.cfg.categories), (S.overlay[e.id] || {}).cat || '', e.cat);
+      if (e.src !== 'Bank' || e.atm || e.splitIdx || !['hhx', 'med', 'spx', 'chg'].includes(e.kind)) return e.cat ? (e.cat === 'Uncategorised' ? '<span class="mute">Uncategorised</span>' : esc(catLabel(e))) : '';
+      return qSelect('qcat', e.id, Object.keys(S.cfg.categories), (S.overlay[e.id] || {}).cat || '', e.cat) + (e.sub ? '<div class="small mute">' + esc(e.sub) + '</div>' : '');
     }},
     {h: 'Mode', k: 'mode', f: e => (e.src !== 'Bank' || e.splitIdx) ? esc(e.mode || '') : qSelect('qmode', e.id, MODES, (S.overlay[e.id] || {}).mode || '', e.mode)}, {h: 'Amount', k: 'amt', cls: 'num', f: e => '<td class="num ' + moneyCls(e.amt) + '">' + inr2(e.amt) + '</td>'}, {h: 'Description', k: 'desc', cls: 'desc', f: e => '<td class="desc" title="' + esc(e.desc || '') + '">' + esc((e.desc || '').slice(0, 110)) + (e.flags.length ? ' ' + e.flags.map(f => pill(f, 'warn')).join(' ') : '') + (e.splitIdx ? ' ' + pill('split ' + e.splitIdx + ' of ' + e.splitN, 'info') : (e.ov ? ' ' + pill('edited layer', 'info') : '')) + '</td>'}
   ], vis, {rowAttr: e => 'class="click" tabindex="0" data-act="editTx" data-arg="' + esc(e.id) + '"', sortBy: {cur: UI.txsort, act: 'txSort'}});

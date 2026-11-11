@@ -295,3 +295,18 @@ def test_hand_entry_can_be_deleted_and_excel_history_removed(loaded):
     loaded.click("[data-act=removeHistory]"); loaded.click("#confirmOk"); loaded.wait_for_timeout(150)
     r = js(loaded, "() => ({tx: S.tx.length, stmt: S.stmt.length, plan: S.cfg.plan.length})")
     assert r["tx"] == 0 and r["stmt"] == 12 and r["plan"] >= 1
+
+
+def test_statement_row_recorded_as_several_excel_lines_is_not_added_again(page):
+    """The Excel history often splits one deposit (household + investment). Importing the bank statement over it
+    used to add that deposit a second time, because no single Excel line had the same amount."""
+    r = page.evaluate("""()=>{
+        const mk=(date,amt,n)=>({id:'w'+n,row:n,date,dep:'Aman',type:'Deposit',purpose:'Family Expenses',desc:'x',amt});
+        S.tx=[mk('2026-04-07',10000,1),mk('2026-04-07',10000,2),mk('2026-04-07',-500,3),mk('2026-04-09',4000,4),mk('2026-04-09',2500,5),mk('2026-04-09',1500,6),mk('2026-04-12',100,7)];
+        const row=(id,date,amt,bal)=>({id,date,amt,bal,desc:'d',ref:'',vdate:date});
+        const p={rows:[row('a','2026-04-07',20000,20000),row('b','2026-04-07',-500,19500),row('c','2026-04-09',8000,27500),row('d','2026-04-10',999,28499),row('e','2026-04-12',300,28799)],
+                 period:{from:'2026-04-07',to:'2026-04-12'},opening:0,closing:28799,file:'f'};
+        const plan=planStatementImport(p);
+        return {fresh:plan.fresh.map(t=>t.id),inWb:plan.inWb.map(t=>t.id)}}""")
+    assert sorted(r["inWb"]) == ["a", "b", "c"]          # 20,000 = 10,000 + 10,000; 8,000 = 4,000 + 2,500 + 1,500
+    assert r["fresh"] == ["d", "e"]              # really new; 300 is not made up from an unrelated 100
