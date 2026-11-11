@@ -376,3 +376,4 @@ def test_reload_works_even_if_the_phone_never_announces_the_switch(built, browse
         ctx.close()
     finally:
         srv.shutdown()
+

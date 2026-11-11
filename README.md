@@ -27,6 +27,7 @@ All screenshots use the synthetic workbook in `sample-data/`, not real figures.
 - **Categories without touching data.** Bank rows are read-only. Categories, payment modes, medical treatment, notes and category splits are stored as a separate layer that survives re-imports.
 - **Controls.** Reconciliation checks, and a review list for duplicates, missing brothers or categories, negative balances, unexplained cash and more. Nothing is ever deleted or changed for you.
 - **Monthly report.** On screen, as a PDF, or as text to paste into WhatsApp.
+- **Print any main page.** Overview, Contributions, Household, Investments and Housing goal have a Print button (or use Ctrl+P). The printout leaves out menus and buttons, stays light in dark mode and is headed with the page, period and date printed.
 
 ## Quick start
 
@@ -40,6 +41,8 @@ All screenshots use the synthetic workbook in `sample-data/`, not real figures.
    - `Purpose` drives the treatment: `Family Expenses`, `Investments`, `Medical Expense`, `Additional Expense`, `Internal Transfer`, `Bank Charges`.
    - Deposits are positive, withdrawals negative. A totals row is skipped. A cell next to the text `Bank Statement Balance` in the first rows is used for reconciliation.
 3. Review the import summary and confirm.
+
+No workbook? Start from a bank statement (its opening balance becomes the starting point) or from scratch: **Add a bank transaction by hand** (an *Opening balance* entry for money already in the account, split between the funds) or **Add a cash entry**. All three are on the start screen.
 
 To try it without real data, generate a synthetic workbook and two made-up bank statements: `python sample-data/make_sample.py && python sample-data/make_statement.py`.
 

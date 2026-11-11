@@ -1,5 +1,13 @@
 # Changelog
 
+## 1.5.0
+- Start without the Excel workbook. The app used to stay on the start screen until a workbook was imported, even after a bank statement or hand entries had been added (or after Remove your Excel history). It now opens as soon as there is anything: a statement, a hand entry or a cash entry. The start screen offers all of these.
+- Print button on Overview, Contributions, Household, Investments and Housing goal (Ctrl+P works too). The print layout drops the sidebar, filters and buttons, always uses light colours, fits tables to the paper, keeps panels from splitting across pages and adds a top line: page, period, date printed, version.
+
+## 1.4.2
+- Setup → Categories: saving the list now warns, naming them, before any category is removed (the box replaces the whole list, so typing one new category used to delete all the others silently). New button: Bring back the default categories (adds the missing defaults, keeps your own).
+- After an edit the page no longer glides from the top back to where you were: the app's own scroll corrections are instant.
+
 ## 1.4.1
 - Updates no longer nag: a waiting update is applied by itself when the app is opened or comes back to the screen; only an update that arrives while you are using the app asks first. Reload always reloads (some phones never announce the switch), with a guard against reload loops.
 - "What's new" is a small note that goes away by itself, with a button for the details, instead of a window to close.

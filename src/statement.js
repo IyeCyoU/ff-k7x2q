@@ -335,7 +335,7 @@ const STMT_ACTIONS = {
   },
   rvSplit: el => { if (UI.rvDraft === undefined) UI.rvDraft = {}; const c = readRowChoice(el.dataset.arg, 'rv'); if (c.who || c.purpose) UI.rvDraft[el.dataset.arg] = c; reviewDialog(el.dataset.arg); },
   rvUndo: el => { delete S.review[el.dataset.arg]; closeModal(); persist(); refresh(); toast('Marked as not reviewed'); },
-  rvPage: el => { UI.rvpage = Math.max(0, (UI.rvpage || 0) + (+el.dataset.arg)); renderView(); window.scrollTo(0, 0); },
+  rvPage: el => { UI.rvpage = Math.max(0, (UI.rvpage || 0) + (+el.dataset.arg)); renderView(); jumpTo(0); },
   rpAdd: () => {
     const box = $('#rv-parts'), t = S.stmt.find(x => x.id === box.dataset.id);
     const rem = r2(+box.dataset.total - $$('.rp-amt', box).reduce((a, i) => a + (parseAmount(i.value) || 0), 0));

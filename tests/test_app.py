@@ -100,3 +100,63 @@ def test_every_tab_renders_without_errors(loaded):
         loaded.wait_for_timeout(120)
         assert not loaded.query_selector(".callout.neg:has-text('could not be drawn')"), tab
     assert loaded.errors == []
+
+
+def test_saving_categories_never_removes_them_silently(loaded):
+    """Typing one new category into the box used to replace the whole list without a word."""
+    js(loaded, "()=>goto('setup')")
+    n = js(loaded, "()=>Object.keys(S.cfg.categories).length")
+    loaded.fill("#cat-t", "Rent")
+    loaded.click("[data-act=saveCats]")
+    assert "Remove" in loaded.text_content("#modalRoot")      # a warning, naming what would go
+    assert "Groceries" in loaded.text_content("#modalRoot")
+    loaded.click("#modalRoot [data-act=closeModal]")          # cancel
+    assert js(loaded, "()=>Object.keys(S.cfg.categories).length") == n
+    # if it did happen, the defaults can be brought back, keeping your own
+    js(loaded, "()=>{S.cfg.categories={Rent:[]};refresh();goto('setup');}")
+    loaded.click("[data-act=restoreCats]")
+    cats = js(loaded, "()=>Object.keys(S.cfg.categories)")
+    assert "Rent" in cats and "Groceries" in cats and len(cats) == n + 1
+
+
+PRINT_PAGES = ("overview", "contributions", "household", "investments", "goal")
+
+
+def test_each_main_page_prints_cleanly(loaded):
+    """Every main page has a Print button; on paper the menus and buttons go, colours stay light, nothing runs off the page."""
+    loaded.evaluate("()=>{window.__printed=0;window.print=()=>{window.__printed++;}}")
+    loaded.emulate_media(color_scheme="dark")
+    for tab in PRINT_PAGES:
+        loaded.evaluate("t=>goto(t)", tab)
+        loaded.click("#view .vh [data-act=printPage]")
+        assert loaded.evaluate("()=>window.__printed") == PRINT_PAGES.index(tab) + 1
+        loaded.set_viewport_size({"width": 720, "height": 1000})       # roughly A4 width inside the margins
+        loaded.emulate_media(media="print", color_scheme="dark")
+        r = loaded.evaluate("""()=>({
+            head: getComputedStyle(document.querySelector('.print-head')).display,
+            side: getComputedStyle(document.querySelector('.side')).display,
+            filters: getComputedStyle(document.querySelector('#filters')).display,
+            btn: getComputedStyle(document.querySelector('#view .vh [data-act=printPage]')).display,
+            bg: getComputedStyle(document.body).backgroundColor,
+            over: document.documentElement.scrollWidth - document.documentElement.clientWidth,
+            text: document.querySelector('.print-head').textContent})""")
+        assert r["head"] == "block" and r["side"] == "none" and r["filters"] == "none" and r["btn"] == "none", (tab, r)
+        assert r["bg"] == "rgb(255, 255, 255)", (tab, r)
+        assert r["over"] <= 1, (tab, r)
+        assert "Family Fund" in r["text"] and "printed" in r["text"], r
+        loaded.emulate_media(media="screen", color_scheme="dark")
+        loaded.set_viewport_size({"width": 1280, "height": 900})
+    loaded.evaluate("()=>goto('transactions')")
+    assert loaded.query_selector("#view [data-act=printPage]") is None
+
+
+def test_printed_tables_fit_with_a_wider_fallback_font(loaded):
+    """Fonts differ between devices (CI caught a 34 px overflow with a wider system font): tables must still fit the paper."""
+    loaded.add_style_tag(content="*{font-family:'DejaVu Sans',Verdana,sans-serif!important}")
+    loaded.set_viewport_size({"width": 680, "height": 1000})
+    for tab in PRINT_PAGES:
+        loaded.evaluate("t=>goto(t)", tab)
+        loaded.emulate_media(media="print")
+        over = loaded.evaluate("()=>document.documentElement.scrollWidth-document.documentElement.clientWidth")
+        assert over <= 1, (tab, over)
+        loaded.emulate_media(media="screen")
