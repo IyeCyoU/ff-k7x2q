@@ -42,7 +42,7 @@ All screenshots use the synthetic workbook in `sample-data/`, not real figures.
    - Deposits are positive, withdrawals negative. A totals row is skipped. A cell next to the text `Bank Statement Balance` in the first rows is used for reconciliation.
 3. Review the import summary and confirm.
 
-No workbook? Start from a bank statement (its opening balance becomes the starting point) or from scratch: **Add a bank transaction by hand** (an *Opening balance* entry for money already in the account, split between the funds) or **Add a cash entry**. All three are on the start screen.
+No workbook? Start from a bank statement (its opening balance becomes the starting point) or from scratch: **Add a bank transaction by hand** (an *Opening balance* entry for money already in the account, split between the funds) or **Add a cash entry**. All three are on the start screen. After the first one, use **Approve and add another**, or **Add transaction** on Overview, Transactions or To review.
 
 To try it without real data, generate a synthetic workbook and two made-up bank statements: `python sample-data/make_sample.py && python sample-data/make_statement.py`.
 

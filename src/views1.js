@@ -132,7 +132,7 @@ function vOverview() {
   const outflow = ti.map(i => -sum(sel(['period', 'brother', 'ctype', 'ttype'], e => e.month === R.months[i] && e.fund && ['hhx', 'chg', 'med', 'spx', 'invd', 'invr'].includes(e.kind)), e => e.amt));
   const c9 = panel('Monthly cash flow', chartSlot('c9', (el, W) => barChart(el, W, {labels: lbl, hi, series: [{name: 'Money in', color: 'var(--pos)', values: inflow}, {name: 'Money out', color: 'var(--neg)', values: outflow}], lines: [{name: 'Family fund position', color: 'var(--info)', values: ti.map(i => R.famCum[i])}], aria: 'Monthly cash flow'})), {note: 'Transfers between family accounts excluded'});
 
-  return '<div class="vh"><h1>Overview</h1><span class="sub">' + esc(P.label) + ' · data through ' + esc(dFull(R.led[R.led.length - 1].date)) + '</span></div>' + hero + kp +
+  return '<div class="vh"><h1>Overview</h1><span class="sub">' + esc(P.label) + ' · data through ' + esc(dFull(R.led[R.led.length - 1].date)) + '</span><div class="actions"><button class="btn" data-act="handAdd">Add transaction</button></div></div>' + hero + kp +
     '<div class="grid g21">' + c1 + c3 + '</div><div class="grid g2">' + c2 + c6 + '</div><div class="grid g2">' + c4 + c5 + '</div><div class="grid g2">' + c7 + c8 + '</div><div class="grid">' + c9 + '</div>';
 }
 function goalMini(gc) {

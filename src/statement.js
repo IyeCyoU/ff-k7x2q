@@ -276,14 +276,14 @@ function reviewDialog(id) {
   const t = S.stmt.find(x => x.id === id); if (!t) return;
   const rv = S.review[id], total = r2(Math.abs(t.amt));
   const parts = rv ? rv.parts.map(p => Object.assign({}, p, {amt: rv.parts.length > 1 ? p.amt : total})) : [Object.assign({}, UI.rvDraft && UI.rvDraft[id] || suggestFor(t), {amt: total})];
-  openModal('<div class="modal-bg" data-modal><div class="modal wide" role="dialog" aria-modal="true" aria-labelledby="rv-t"><h2 id="rv-t">' + (rv ? 'Change' : 'Review') + ' bank row</h2>' +
+  openModal('<div class="modal-bg" data-modal><div class="modal wide" role="dialog" aria-modal="true" aria-labelledby="rv-t"><h2 id="rv-t">' + (rv ? 'Change' : 'Review') + (t.manual ? ' hand entry' : ' bank row') + '</h2>' +
     '<div class="kv mb"><div class="r"><span>Date</span><b>' + dFull(t.date) + '</b></div><div class="r"><span>Amount</span><b class="' + moneyCls(t.amt) + '">' + inr2(t.amt) + '</b></div><div class="r"><span>Narration</span><b style="word-break:break-all">' + esc(t.desc) + '</b></div>' + (t.ref ? '<div class="r"><span>Reference</span><b>' + esc(t.ref) + '</b></div>' : '') + (t.manual ? '<div class="r"><span>Source</span><b>Entered by hand (not yet in a bank statement)</b></div>' : '<div class="r"><span>Balance after</span><b>' + inr2(t.bal) + '</b></div>') + '</div>' +
     '<div class="small mb">Split into parts when this payment covers more than one person or purpose. The parts must add up to ' + inr2(total) + '.</div>' +
     '<div id="rv-parts" data-id="' + esc(id) + '" data-total="' + total + '">' + parts.map(p => rvPartRow(t, p)).join('') + '</div>' +
     '<div class="row mt"><button class="btn sm" data-act="rpAdd">Add part</button><span class="small" id="rp-rem"></span></div>' +
     '<div class="field mt"><label for="rv-note">Note (optional)</label><input id="rv-note" value="' + esc(rv ? rv.note : '') + '" placeholder="e.g. Bilal deposited Aman\'s share"></div>' +
     '<p class="small" id="rv-msg" role="alert" style="color:var(--neg)"></p>' +
-    '<div class="foot">' + (t.manual ? '<button class="btn danger" data-act="handDelete" data-arg="' + esc(id) + '">Delete hand entry</button>' : '') + (rv ? '<button class="btn danger" data-act="rvUndo" data-arg="' + esc(id) + '">Mark as not reviewed</button>' : '') + '<button class="btn" data-act="closeModal">Cancel</button><button class="btn primary" data-act="rvSave">Approve</button></div></div></div>');
+    '<div class="foot">' + (t.manual ? '<button class="btn danger" data-act="handDelete" data-arg="' + esc(id) + '">Delete hand entry</button><button class="btn" data-act="handEdit" data-arg="' + esc(id) + '">Edit date, amount or description</button>' : '') + (rv ? '<button class="btn danger" data-act="rvUndo" data-arg="' + esc(id) + '">Mark as not reviewed</button>' : '') + '<button class="btn" data-act="closeModal">Cancel</button>' + (t.manual && !rv ? '<button class="btn" data-act="rvSave" data-arg="more">Approve and add another</button>' : '') + '<button class="btn primary" data-act="rvSave">Approve</button></div></div></div>');
   rpRemaining();
 }
 function rpRemaining() {
@@ -298,28 +298,38 @@ function rpRemaining() {
   }
 }
 /* ---- transactions entered by hand ---- */
-function handModal() {
-  openModal('<div class="modal-bg" data-modal><div class="modal" role="dialog" aria-modal="true" aria-labelledby="hd-t"><h2 id="hd-t">Add a bank transaction by hand</h2>' +
-    '<p class="small mb">For a transaction that is not in an imported statement yet. When you import the statement that has it, the app recognises it (same amount, within 5 days) and keeps what you choose here instead of adding it twice.</p>' +
-    '<div class="formgrid"><div class="field"><label for="hd-date">Date</label><input id="hd-date" type="date" value="' + todayISO() + '"></div>' +
-    '<div class="field"><label for="hd-dir">Money</label><select id="hd-dir"><option value="in">Came in (deposit)</option><option value="out">Went out (withdrawal)</option></select></div>' +
-    '<div class="field"><label for="hd-amt">Amount (₹)</label><input id="hd-amt" type="text" inputmode="decimal" autocomplete="off" data-num></div>' +
-    '<div class="field span3"><label for="hd-desc">Description</label><input id="hd-desc" placeholder="e.g. UPI from Aman, monthly expenses"></div></div>' +
+function handModal(prev, edit) {   // prev: the entry just saved, when adding several in a row; edit: a hand entry being corrected
+  const src = edit || prev, pd = src && src.date || todayISO(), out = !!(src && src.amt < 0);
+  openModal('<div class="modal-bg" data-modal><div class="modal" role="dialog" aria-modal="true" aria-labelledby="hd-t"><h2 id="hd-t">' + (edit ? 'Edit this hand entry' : 'Add a bank transaction by hand') + '</h2>' +
+    (edit ? '<p class="small mb">Correct the date, amount, direction or description. Who and what for are kept, unless you change the amount of a split entry or the direction: then you choose them again.</p>' : '<p class="small mb">For a transaction that is not in an imported statement yet. When you import the statement that has it, the app recognises it (same amount, within 5 days) and keeps what you choose here instead of adding it twice.</p>') +
+    '<div class="formgrid"><div class="field"><label for="hd-date">Date</label>' + dateField('hd-date', pd) + '</div>' +
+    '<div class="field"><label for="hd-dir">Money</label><select id="hd-dir"><option value="in">Came in (deposit)</option><option value="out"' + (out ? ' selected' : '') + '>Went out (withdrawal)</option></select></div>' +
+    '<div class="field"><label for="hd-amt">Amount (₹)</label><input id="hd-amt" type="text" inputmode="decimal" autocomplete="off" data-num value="' + (edit ? Math.abs(edit.amt) : '') + '"></div>' +
+    '<div class="field span3"><label for="hd-desc">Description</label><input id="hd-desc" placeholder="e.g. UPI from Aman, monthly expenses" value="' + esc(edit ? edit.desc : '') + '"></div></div>' +
     '<p class="small" id="hd-msg" role="alert" style="color:var(--neg)"></p>' +
-    '<div class="foot"><button class="btn" data-act="closeModal">Cancel</button><button class="btn primary" data-act="handNext">Next: who and what for</button></div></div></div>');
+    '<div class="foot">' + (edit ? '' : '<button class="btn" data-act="addCash" title="For money that never went through the bank">It was cash instead</button>') + '<button class="btn" data-act="closeModal">Cancel</button><button class="btn primary" data-act="handNext"' + (edit ? ' data-arg="' + esc(edit.id) + '"' : '') + '>' + (edit ? 'Save changes' : 'Next: who and what for') + '</button></div></div></div>');
 }
 const STMT_ACTIONS = {
   handAdd: () => handModal(),
-  handNext: () => {
-    const date = $('#hd-date').value, amt = parseAmount($('#hd-amt').value), desc = $('#hd-desc').value.trim(), out = $('#hd-dir').value === 'out', msg = $('#hd-msg');
-    if (!validISO(date)) { msg.textContent = 'Enter a valid date.'; return; }
+  handEdit: el => { const t = S.stmt.find(x => x.id === el.dataset.arg && x.manual); if (t) handModal(null, t); },
+  handNext: el => {
+    const date = readDate('#hd-date'), amt = parseAmount($('#hd-amt').value), desc = $('#hd-desc').value.trim(), out = $('#hd-dir').value === 'out', msg = $('#hd-msg');
+    if (!date) { msg.textContent = 'Enter the date as day/month/year, for example 05/04/2026.'; return; }
     if (!(amt > 0)) { msg.textContent = 'Enter an amount above zero.'; return; }
     if (!desc) { msg.textContent = 'Add a short description so the entry can be recognised later.'; return; }
-    const a = r2(out ? -amt : amt), t = {id: 'M|' + uid(), date, desc, ref: '', vdate: date, wd: out ? r2(amt) : 0, dep: out ? 0 : r2(amt), amt: a, bal: null, row: 0, file: 'Entered by hand', manual: true};
-    S.stmt.push(t);
+    const a = r2(out ? -amt : amt), old = el && el.dataset.arg ? S.stmt.find(x => x.id === el.dataset.arg && x.manual) : null;
+    if (old) {   // correcting an entry already posted: same entry, same id
+      const rv = S.review[old.id], flipped = (old.amt < 0) !== (a < 0), resized = Math.abs(old.amt - a) > 0.005;
+      if (rv && (flipped || (resized && rv.parts.length > 1))) delete S.review[old.id];   // the old choices no longer fit
+      else if (rv && resized) rv.parts[0].amt = Math.abs(a);
+      Object.assign(old, {date, vdate: date, desc, amt: a, wd: out ? r2(amt) : 0, dep: out ? 0 : r2(amt)});
+    }
+    const t = old || {id: 'M|' + uid(), date, desc, ref: '', vdate: date, wd: out ? r2(amt) : 0, dep: out ? 0 : r2(amt), amt: a, bal: null, row: 0, file: 'Entered by hand', manual: true};
+    if (!old) S.stmt.push(t);
     const order = new Map(S.stmt.map((x, i) => [x.id, i]));
     S.stmt.sort((x, y) => x.date < y.date ? -1 : x.date > y.date ? 1 : order.get(x.id) - order.get(y.id));
-    persist(); refresh(); reviewDialog(t.id);
+    persist(); refresh();
+    if (old && S.review[t.id]) { closeModal(); toast('Entry updated'); } else reviewDialog(t.id);
   },
   handDelete: el => confirmModal('Delete this hand entry?', '<p>It is removed from the app, with what you chose for it. Bank statement rows are never deleted this way.</p>', 'Delete', () => {
     const id = el.dataset.arg; S.stmt = S.stmt.filter(t => !(t.id === id && t.manual)); delete S.review[id]; delete S.overlay[id]; persist(); refresh(); toast('Hand entry deleted');
@@ -343,7 +353,7 @@ const STMT_ACTIONS = {
     rpRemaining(); const last = $$('.rv-part', box).slice(-1)[0]; if (last) $('.rp-who', last).focus();
   },
   rpRemove: el => { const box = $('#rv-parts'); if ($$('.rv-part', box).length > 1) el.closest('.rv-part').remove(); rpRemaining(); },
-  rvSave: () => {
+  rvSave: el => {
     const box = $('#rv-parts'), id = box.dataset.id, total = +box.dataset.total, msg = $('#rv-msg');
     const parts = $$('.rv-part', box).map(r => ({who: $('.rp-who', r).value, purpose: $('.rp-purpose', r).value, reason: $('.rp-reason', r).hidden ? '' : $('.rp-reason', r).value,
       cat: $('.rp-cat', r).hidden ? '' : $('.rp-cat', r).value, amt: parseAmount($('.rp-amt', r).value)}));
@@ -353,6 +363,7 @@ const STMT_ACTIONS = {
     if (Math.abs(got - total) > 0.005) { msg.textContent = 'The parts add up to ' + inr2(got) + ', not ' + inr2(total) + '.'; return; }
     approveRow(id, parts.map(p => Object.assign(p, {amt: r2(p.amt)})), $('#rv-note').value.trim());
     closeModal(); persist(); refresh(); toast(parts.length > 1 ? 'Approved in ' + parts.length + ' parts' : 'Approved');
+    if (el && el.dataset.arg === 'more') handModal(S.stmt.find(x => x.id === id));   // next one starts on the same date and direction
   }
 };
 /* change events from the To review page and the dialog; returns true when handled */

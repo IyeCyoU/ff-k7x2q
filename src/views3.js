@@ -31,7 +31,7 @@ function cashModal(id) {
   const O = (arr, cur) => arr.map(v => '<option' + (v === cur ? ' selected' : '') + '>' + esc(v) + '</option>').join('');
   const people = S.cfg.people;
   return '<div class="modal-bg" data-modal><div class="modal" role="dialog" aria-modal="true" aria-labelledby="cm-t"><h2 id="cm-t">' + (c ? 'Edit' : 'Add') + ' cash entry</h2><div class="formgrid">' +
-    '<div class="field"><label for="cf-date">Transaction date</label><input id="cf-date" type="date" value="' + esc(d.date) + '"></div>' +
+    '<div class="field"><label for="cf-date">Transaction date</label>' + dateField('cf-date', d.date) + '</div>' +
     '<div class="field"><label for="cf-dir">What happened</label><select id="cf-dir"><option value="Receipt"' + (d.dir === 'Receipt' ? ' selected' : '') + '>Cash received from a brother</option><option value="Payment"' + (d.dir === 'Payment' ? ' selected' : '') + '>Cash paid out</option><option value="Direct"' + (d.dir === 'Direct' ? ' selected' : '') + '>Paid directly by a brother (not from the family\'s cash or bank)</option></select></div>' +
     '<div class="field"><label for="cf-amt">Amount (₹)</label><input id="cf-amt" type="text" inputmode="decimal" autocomplete="off" data-num step="0.01" min="0" value="' + esc(d.amt) + '"></div>' +
     '<div class="field"><label for="cf-by" id="cf-by-l">Paid / received by</label><select id="cf-by">' + O(people, d.by) + '</select></div>' +

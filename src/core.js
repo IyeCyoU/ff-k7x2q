@@ -7,6 +7,7 @@ const FUNDS = ['H', 'I', 'S', 'M', 'O', 'X'];   // household, investment, specia
 const OUTSIDE_REASONS = ['Payable to a third party', 'Donation / charity', 'Other debt', 'Not part of the family fund'];   // which version's "what's new" this browser has shown
 const APP_VERSION = '__APP_VERSION__';   // filled in by build.py from VERSION
 const WHATS_NEW = {   // shown once after an update; newest first
+  '1.5.1': ['Adding several transactions by hand is easier: Approve and add another, and an Add transaction button on Overview and Transactions.', 'A transaction you added by hand can be edited afterwards: open it and choose Edit date, amount or description.', 'Dates are a plain box now: type or paste 5/4/2026, 05-04-26 or 5 Apr 2026. The small calendar is still beside it.'],
   '1.5.0': ['Print: Overview, Contributions, Household, Investments and Housing goal each have a Print button. The printout leaves out menus and buttons, stays light in dark mode and shows the period and the date printed.', 'You can start without the Excel workbook: from a bank statement, a transaction added by hand or a cash entry.'],
   '1.4.2': ['Saving categories now warns before it removes any. Setup → Categories has a button to bring back the default categories.'],
   '1.4.1': ['Updates install by themselves when you open the app, and Reload always works, so the "new version" message no longer keeps coming back.',
@@ -188,6 +189,32 @@ function parseDateCell(v) {
   if (m) return m[3] + '-' + m[2].padStart(2, '0') + '-' + m[1].padStart(2, '0');
   return null;
 }
+/* A date as people type or paste it: 5/4/2026, 05-04-26, 5 Apr 2026, 5 Apr, 2026-04-05, today, yesterday.
+   Day comes first (Indian order). Returns yyyy-mm-dd, or null when it is not a real date. */
+function parseTypedDate(v) {
+  let s = String(v == null ? '' : v).trim().toLowerCase().replace(/,/g, ' ').replace(/\s+/g, ' ');
+  if (!s) return null;
+  const now = new Date(), iso = (y, m, d) => {
+    const dt = new Date(y, m - 1, d);
+    return dt.getFullYear() === y && dt.getMonth() === m - 1 && dt.getDate() === d && y >= 1990 && y <= 2100 ? y + '-' + String(m).padStart(2, '0') + '-' + String(d).padStart(2, '0') : null;
+  };
+  if (s === 'today' || s === 'yesterday') { const d = new Date(now.getFullYear(), now.getMonth(), now.getDate() - (s === 'today' ? 0 : 1)); return iso(d.getFullYear(), d.getMonth() + 1, d.getDate()); }
+  const yr = y => y == null ? now.getFullYear() : y.length <= 2 ? 2000 + +y : +y;
+  let m = s.match(/^(\d{4})[-\/.](\d{1,2})[-\/.](\d{1,2})/); if (m) return iso(+m[1], +m[2], +m[3]);
+  m = s.match(/^(\d{1,2})[-\/. ](\d{1,2})(?:[-\/. ](\d{2}|\d{4}))?$/); if (m) return iso(yr(m[3]), +m[2], +m[1]);
+  m = s.match(/^(\d{1,2})(?:st|nd|rd|th)?[-\/. ]?([a-z]{3,9})\.?(?:[-\/. ]?(\d{2}|\d{4}))?$/);
+  if (m) { const mi = MS.findIndex(x => m[2].startsWith(x.toLowerCase())); if (mi >= 0) return iso(yr(m[3]), mi + 1, +m[1]); }
+  m = s.match(/^([a-z]{3,9})\.? ?(\d{1,2})(?:st|nd|rd|th)?(?: (\d{4}))?$/);
+  if (m) { const mi = MS.findIndex(x => m[1].startsWith(x.toLowerCase())); if (mi >= 0) return iso(yr(m[3]), mi + 1, +m[2]); }
+  return null;
+}
+const showDate = iso => iso && /^\d{4}-\d{2}-\d{2}$/.test(iso) ? iso.slice(8) + '/' + iso.slice(5, 7) + '/' + iso.slice(0, 4) : '';
+/* the box: plain text (type or paste), with a small calendar beside it for those who prefer to pick */
+function dateField(id, iso) {
+  return '<span class="datebox"><input id="' + id + '" type="text" data-date autocomplete="off" placeholder="dd/mm/yyyy" value="' + showDate(iso) + '">' +
+    '<input type="date" class="dpick" data-date-for="' + id + '" value="' + (iso || '') + '" aria-label="Pick the date from a calendar" tabindex="-1"></span>';
+}
+const readDate = sel => parseTypedDate($(sel).value);
 function parseAmt(v) {
   if (typeof v === 'number') return isFinite(v) ? v : null;
   if (v == null || v === '') return null;

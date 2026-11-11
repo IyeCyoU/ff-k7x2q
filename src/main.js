@@ -318,7 +318,8 @@ const ACT = {
   saveCash: el => {
     const id = el.dataset.arg, g = s => $(s).value, dir = g('#cf-dir'), cls = g('#cf-cls'), amt = parseAmount(g('#cf-amt')) ?? NaN, msg = $('#cf-msg');
     const errs = [], warns = [];
-    if (!validISO(g('#cf-date'))) errs.push('Enter a valid date.');
+    const cfDate = readDate('#cf-date');
+    if (!cfDate) errs.push('Enter the date as day/month/year, for example 05/04/2026.');
     if (!(amt > 0)) errs.push('Enter an amount greater than zero.');
     if (dir === 'Receipt' && !isBro(g('#cf-person'))) errs.push('Choose which brother the cash came from.');
     if (dir === 'Direct' && !isBro(g('#cf-person'))) errs.push('Choose which brother paid.');
@@ -327,7 +328,7 @@ const ACT = {
     const acct = dir === 'Direct' ? 'Direct' : g('#cf-acct') === 'Cash' ? 'Cash' : ACCOUNTS[1];
     if (errs.length) { msg.style.display = ''; msg.className = 'callout neg'; msg.innerHTML = errs.map(esc).join('<br>'); return; }
     if (acct === 'Cash' && dir !== 'Direct' && g('#cf-mode') !== 'Cash') warns.push('The payment mode is ' + g('#cf-mode') + ', which normally shows in the bank statement. Change the mode to Cash if this was real cash.');
-    const entry = {id: id || uid(), date: g('#cf-date'), dir, by: dir === 'Direct' ? g('#cf-person') : g('#cf-by'), person: g('#cf-person'), mode: g('#cf-mode'), acct, cls, cat: dir !== 'Receipt' && cls !== 'Investment' ? g('#cf-cat') : '', sub: g('#cf-sub'), med: cls === 'Medical' ? g('#cf-med') : '', src: dir === 'Payment' ? g('#cf-src') : 'Cash in hand', desc: g('#cf-desc').trim(), amt: r2(amt), ref: g('#cf-ref').trim(), note: g('#cf-note').trim()};
+    const entry = {id: id || uid(), date: cfDate, dir, by: dir === 'Direct' ? g('#cf-person') : g('#cf-by'), person: g('#cf-person'), mode: g('#cf-mode'), acct, cls, cat: dir !== 'Receipt' && cls !== 'Investment' ? g('#cf-cat') : '', sub: g('#cf-sub'), med: cls === 'Medical' ? g('#cf-med') : '', src: dir === 'Payment' ? g('#cf-src') : 'Cash in hand', desc: g('#cf-desc').trim(), amt: r2(amt), ref: g('#cf-ref').trim(), note: g('#cf-note').trim()};
     if (!/^ATM/i.test(entry.src)) { const dup = possibleBankDup(entry); if (dup.length) warns.push('A bank row of the same amount exists on ' + dFull(dup[0].date) + ' (' + dup[0].person + '). If this is the same money, do not add it here.'); }
     if (warns.length && !el.dataset.ok) { msg.style.display = ''; msg.className = 'callout warn'; msg.innerHTML = warns.map(esc).join('<br>') + '<br><b>Click Save again to keep it anyway.</b>'; el.dataset.ok = '1'; return; }
     const i = S.cash.findIndex(c => c.id === entry.id); if (i >= 0) S.cash[i] = entry; else S.cash.push(entry);
@@ -405,6 +406,13 @@ document.addEventListener('keydown', ev => {
 // as typed so the handler's own check rejects it.
 function normaliseNum(ev) { const el = ev.target; if (!el || !el.matches || !el.matches('input[data-num]')) return; const n = parseAmount(el.value); if (n !== null && String(n) !== el.value) el.value = String(n); }
 ['change', 'focusout'].forEach(n => document.addEventListener(n, normaliseNum, true));
+// date boxes: tidy what was typed or pasted into dd/mm/yyyy, and keep the little calendar in step
+function normaliseDate(ev) {
+  const el = ev.target; if (!el || !el.matches) return;
+  if (el.matches('input[data-date]')) { const d = parseTypedDate(el.value); el.classList.toggle('bad', !!el.value.trim() && !d); if (d) { el.value = showDate(d); const p = el.parentNode.querySelector('.dpick'); if (p) p.value = d; } }
+  else if (el.matches('input.dpick') && el.value) { const t = document.getElementById(el.dataset.dateFor); if (t) { t.value = showDate(el.value); t.classList.remove('bad'); } }
+}
+['change', 'focusout', 'input'].forEach(n => document.addEventListener(n, ev => { if (n !== 'input' || ev.target.matches && ev.target.matches('input.dpick')) normaliseDate(ev); }, true));
 document.addEventListener('keydown', ev => { if (ev.key === 'Enter') normaliseNum(ev); }, true);
 document.addEventListener('change', ev => {
   const t = ev.target;

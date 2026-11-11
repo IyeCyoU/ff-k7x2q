@@ -331,6 +331,12 @@ table.t{width:100%;border-collapse:separate;border-spacing:0;font-size:13.5px}
 .empty .start>div{display:flex;flex-direction:column;gap:6px;padding:12px 14px;border:1px solid var(--line);border-radius:10px;background:var(--surface)}
 .empty .start .btn{align-self:flex-start}
 .empty .start .row{display:flex;flex-wrap:wrap;gap:8px}
+.datebox{display:flex;gap:6px;align-items:stretch}
+.datebox input[data-date]{flex:1;min-width:0}
+.datebox input[data-date].bad{border-color:var(--neg)}
+.datebox .dpick{flex:none;width:44px;padding:0 6px;color:transparent;cursor:pointer}
+.datebox .dpick::-webkit-datetime-edit{display:none}
+.datebox .dpick::-webkit-calendar-picker-indicator{margin:0 auto;cursor:pointer}
 /* ============ printing ============ */
 .print-head{display:none}
 @media print{

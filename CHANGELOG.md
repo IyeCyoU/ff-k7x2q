@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.5.1
+- Entering transactions by hand, one after another: the review window of a hand entry has **Approve and add another** (the next one starts on the same date and direction), and **Add transaction** is on Overview and Transactions as well as To review. Before, after the first entry you were left on Overview with no way to add the next; on a phone the only button was under More → To review.
+- The hand-entry form has **It was cash instead**, which opens the cash entry form.
+- A hand entry can be corrected after it is posted: open it (Transactions or To review) → **Edit date, amount or description**. It stays the same entry; who and what for are kept unless the direction changes or the amount of a split entry changes. Rows from a bank statement stay read-only, as they are the bank's record.
+- Date boxes (hand entry and cash entry) are plain text: type or paste `5/4/2026`, `05-04-26`, `5 Apr 2026`, `2026-04-05`, `today`. Day first. Impossible dates are refused. A small calendar button sits beside the box.
+
 ## 1.5.0
 - Start without the Excel workbook. The app used to stay on the start screen until a workbook was imported, even after a bank statement or hand entries had been added (or after Remove your Excel history). It now opens as soon as there is anything: a statement, a hand entry or a cash entry. The start screen offers all of these.
 - Print button on Overview, Contributions, Household, Investments and Housing goal (Ctrl+P works too). The print layout drops the sidebar, filters and buttons, always uses light colours, fits tables to the paper, keeps panels from splitting across pages and adds a top line: page, period, date printed, version.
