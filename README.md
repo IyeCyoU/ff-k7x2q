@@ -60,7 +60,7 @@ Your earlier Excel history stays as it is; statement rows that are already in it
 
 ## Install on a phone, use offline
 
-Open the site in Safari (iPhone) or Chrome (Android) and choose **Add to Home Screen**. After the first visit it opens without internet. When a new version is published, the app shows **A new version is ready. Reload**.
+Open the site in Safari (iPhone) or Chrome (Android) and choose **Add to Home Screen**. After the first visit it opens without internet. When a new version is published, the app updates by itself: opening it shows the newest version, and nothing is asked.
 
 ## Run it on a PC with no internet
 
@@ -101,7 +101,7 @@ src/
   pdf.js        PDF report
   statement.js  bank statement import, review, splits, money outside the family fund
   main.js       navigation, events, import, sorting, backup (optionally encrypted)
-  pwa.js        offline support registration and the "new version" prompt
+  pwa.js        offline support registration and silent updates
   sw.js         offline cache (build.py fills in the version and file list)
   icons/, manifest.webmanifest   Home Screen install
   style.css     design tokens and components

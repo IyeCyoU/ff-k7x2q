@@ -28,6 +28,19 @@ class Quiet(http.server.SimpleHTTPRequestHandler):
         super().end_headers()
 
 
+def _switched(pg, name, seconds=10):
+    """Wait until the offline copy has switched to the release whose cache name contains `name`: the old cache is
+    gone and nothing is installing or waiting. (Polled from here: a promise handed to wait_for_function counts as true.)"""
+    st = None
+    for _ in range(seconds * 10):
+        st = pg.evaluate("""() => Promise.all([caches.keys(), navigator.serviceWorker.getRegistration()]).then(([k, r]) =>
+            ({keys: k, waiting: !!r.waiting, installing: !!r.installing, active: r.active && r.active.state}))""")
+        if len(st["keys"]) == 1 and name in st["keys"][0] and not st["waiting"] and not st["installing"] and st["active"] == "activated":
+            return st
+        pg.wait_for_timeout(100)
+    raise AssertionError("the offline copy did not switch by itself: %r" % (st,))
+
+
 def serve(directory):
     srv = http.server.ThreadingHTTPServer(("127.0.0.1", 0), functools.partial(Quiet, directory=str(directory)))
     threading.Thread(target=srv.serve_forever, daemon=True).start()
@@ -87,7 +100,7 @@ def test_security_policy_blocks_other_servers_and_app_trips_nothing(site, browse
     ctx.close()
 
 
-def test_works_offline_and_offers_new_version(built, browser, tmp_path):
+def test_works_offline_and_updates_without_asking(built, browser, tmp_path):
     copy = tmp_path / "site"
     shutil.copytree(DIST, copy)
     srv, url = serve(copy)
@@ -102,17 +115,14 @@ def test_works_offline_and_offers_new_version(built, browser, tmp_path):
         assert pg.title() == "Family Fund"
         load_sample(pg)                       # the libraries work offline too
         ctx.set_offline(False)
-        # while the app is in use (after the quiet start-up window), an update asks first, and Reload applies it
-        pg.wait_for_timeout(15500)
+        # a new release of the offline copy takes over by itself: no question, no reload, nothing on screen
+        pg.evaluate("window.__same = true")
         sw = copy / "sw.js"
         sw.write_text(sw.read_text().replace("const CACHE = 'family-fund-", "const CACHE = 'family-fund-next-"))
         pg.evaluate("navigator.serviceWorker.getRegistration().then(r => r.update())")
-        pg.wait_for_selector(".sw-update", timeout=10000)
-        with pg.expect_navigation():
-            pg.click(".sw-update button")
-        pg.wait_for_timeout(500)
-        assert all(k.startswith("family-fund-next-") for k in pg.evaluate("caches.keys()"))
-        assert pg.query_selector(".sw-update") is None, "the message must not come back after Reload"
+        _switched(pg, "family-fund-next-")
+        assert pg.evaluate("window.__same") is True, "the page must not be reloaded for this"
+        assert pg.query_selector(".sw-update") is None and "new version is ready" not in pg.inner_text("body").lower()
         assert pg.problems == []
         ctx.close()
     finally:
@@ -328,52 +338,62 @@ def test_data_saved_by_an_older_version_keeps_working(site, browser):
 
 
 
-def _new_version(copy):
+def _release(copy, version):
+    """Pretend a new release was published: the offline-support file names another version."""
+    import re
     sw = copy / "sw.js"
-    sw.write_text(sw.read_text().replace("const CACHE = 'family-fund-", "const CACHE = 'family-fund-next-", 1))
+    sw.write_text(re.sub(r"const CACHE = 'family-fund-[0-9.]+-", "const CACHE = 'family-fund-%s-" % version, sw.read_text(), count=1))
 
 
-def _waiting(pg):
-    return pg.evaluate("navigator.serviceWorker.getRegistration().then(r => !!(r && r.waiting))")
+def _come_back(pg):
+    pg.evaluate("document.dispatchEvent(new Event('visibilitychange'))")
 
 
-def test_update_is_applied_on_opening_without_asking(built, browser, tmp_path):
+def test_never_asks_about_a_new_version(built, browser, tmp_path):
+    """The "A new version is ready" message is gone for good: not on opening, not while in use, not after a release."""
     copy = tmp_path / "site"; shutil.copytree(DIST, copy)
     srv, url = serve(copy)
     try:
         ctx, pg = open_site(browser, url)
         pg.evaluate("navigator.serviceWorker.ready"); pg.reload(); pg.wait_for_timeout(300)
-        _new_version(copy)
-        # a new tab = opening the app again; the waiting update is applied with no question
-        pg2 = ctx.new_page(); pg2.goto(url)
-        pg2.wait_for_timeout(4500)
-        keys = pg2.evaluate("caches.keys()")
-        assert all(k.startswith("family-fund-next-") for k in keys), keys
-        assert pg2.query_selector(".sw-update") is None, "no prompt when opening the app"
-        assert not _waiting(pg2)
+        assert "sw-update" not in (DIST / "index.html").read_text(), "the app has no code left that can show it"
+        for v in ("9.9.1", "9.9.2", "9.9.3"):
+            _release(copy, v)
+            pg.evaluate("navigator.serviceWorker.getRegistration().then(r => r.update())")
+            _switched(pg, v)
+            assert pg.query_selector(".sw-update") is None
+        pg2 = ctx.new_page(); pg2.goto(url); pg2.wait_for_timeout(1500)      # opening it again: still nothing
+        assert pg2.query_selector(".sw-update") is None
         ctx.close()
     finally:
         srv.shutdown()
 
 
-def test_reload_works_even_if_the_phone_never_announces_the_switch(built, browser, tmp_path):
-    """Some iPhones never fire 'controllerchange'. Reload must still reload, and must not loop."""
+def test_app_left_open_refreshes_itself_once_and_never_loops(built, browser, tmp_path):
     copy = tmp_path / "site"; shutil.copytree(DIST, copy)
     srv, url = serve(copy)
     try:
         ctx, pg = open_site(browser, url)
         pg.evaluate("navigator.serviceWorker.ready"); pg.reload(); pg.wait_for_timeout(300)
-        pg.wait_for_timeout(15500)                       # past the quiet start-up window: now "in use"
-        _new_version(copy)
-        pg.evaluate("navigator.serviceWorker.getRegistration().then(r => r.update())")
-        pg.wait_for_selector(".sw-update", timeout=10000)
-        pg.evaluate("ServiceWorker.prototype.postMessage = function () {}")   # the switch never happens
+        # same release on the website: coming back to the app does nothing
+        pg.evaluate("window.__same = true"); _come_back(pg); pg.wait_for_timeout(1500)
+        assert pg.evaluate("window.__same") is True
+        # a new release while something is being typed: left alone
+        _release(copy, "9.9.9")
+        pg.evaluate("()=>{const i=document.createElement('input');i.id='typing';document.body.appendChild(i);i.focus();}")
+        _come_back(pg); pg.wait_for_timeout(1500)
+        assert pg.evaluate("window.__same") is True, "never refresh while the user is typing"
+        # nothing being edited: it refreshes itself, once
+        pg.evaluate("document.getElementById('typing').remove()")
         with pg.expect_navigation(timeout=6000):
-            pg.click(".sw-update button")                 # still reloads, after 3 s
-        pg.wait_for_timeout(1500)
-        # it did not loop: the update is offered once more instead of reloading again and again
-        assert pg.query_selector(".sw-update") is not None
+            _come_back(pg)
+        pg.wait_for_timeout(500)
+        # this test site still serves the old page, so the page is still "behind": it must not try again and again
+        pg.evaluate("window.__same = true")
+        for _ in range(3):
+            _come_back(pg); pg.wait_for_timeout(800)
+        assert pg.evaluate("window.__same") is True, "one refresh per release, no loop"
+        assert pg.query_selector(".sw-update") is None
         ctx.close()
     finally:
         srv.shutdown()
-

@@ -4,10 +4,11 @@ const CACHE = '__CACHE__';
 const FILES = __FILES__;
 
 self.addEventListener('install', e => {
-  e.waitUntil(caches.open(CACHE).then(c => c.addAll(FILES.map(u => new Request(u, {cache: 'reload'})))));
-  // No skipWaiting: the page asks before switching to a new version.
+  // Take over as soon as the files are stored. The page never has to ask or reload for this: it is loaded
+  // from the website first, so it is already the new version, and any page works with any release of this file.
+  e.waitUntil(caches.open(CACHE).then(c => c.addAll(FILES.map(u => new Request(u, {cache: 'reload'})))).then(() => self.skipWaiting()));
 });
-self.addEventListener('message', e => { if (e.data === 'skipWaiting') self.skipWaiting(); });
+self.addEventListener('message', e => { if (e.data === 'skipWaiting') self.skipWaiting(); });   // pages opened before 1.6.1 still send this
 self.addEventListener('activate', e => {
   e.waitUntil(caches.keys().then(ks => Promise.all(ks.filter(k => k.startsWith('family-fund-') && k !== CACHE).map(k => caches.delete(k)))).then(() => self.clients.claim()));
 });

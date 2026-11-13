@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.6.1
+- The "A new version is ready" message is removed. It could come back on every visit: the app page was already the new version (it is always loaded from the website first), but the offline copy only switched after a question and a reload, and on phones where that switch did not complete the question was asked again each time. Now the offline copy switches to a new release by itself, with no question and no reload.
+- An app left open across a release refreshes itself once, the next time you return to it and nothing is being typed or edited. At most one refresh per release.
+
 ## 1.6.0
 - Subcategories everywhere a category is chosen for a bank transaction: the transaction window, payee rules in Setup and Categorise payees offer `Category › Subcategory`. Rules can carry a subcategory. Transactions show it and search finds it.
 - Your own category names are respected: if Medical or Bank Charges were renamed (for example "Medical & Healthcare"), medical and bank-charge rows use that name instead of a built-in one.
