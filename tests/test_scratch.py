@@ -142,3 +142,20 @@ def test_bank_statement_rows_cannot_be_edited(page):
     assert not page.query_selector("#modalRoot [data-act=handEdit]")
     page.evaluate("()=>STMT_ACTIONS.handEdit({dataset:{arg:S.stmt.find(t=>!t.manual).id}})")
     assert not page.query_selector("#hd-amt")
+
+
+def test_review_window_subcategory_follows_its_category(page):
+    page.evaluate("()=>{S.cfg.categories={'Food':['Bakery','Milk'],'Travel':['Fuel'],'Plain':[]}; S.cfg.rules=[]; persist();}")
+    page.click("#view [data-act=handAdd]")
+    page.fill("#hd-date", "02/04/2026"); page.fill("#hd-amt", "450"); page.fill("#hd-desc", "Corner shop"); page.select_option("#hd-dir", "out")
+    page.click("[data-act=handNext]")
+    page.select_option("#modalRoot .rp-who", index=1)
+    page.select_option("#modalRoot .rp-purpose", "Family Expenses")
+    sub = "#modalRoot .rp-sub"
+    assert page.is_disabled(sub)
+    page.select_option("#modalRoot .rp-cat", "Food")
+    assert page.evaluate("s=>[...document.querySelector(s).options].map(o=>o.value).filter(Boolean)", sub) == ["Bakery", "Milk"]
+    page.select_option(sub, "Milk")
+    page.click("#modalRoot [data-act=rvSave]:not([data-arg])")
+    e = page.evaluate("()=>{const e=R.led.find(x=>x.stmt&&x.amt<0); return [e.cat,e.sub]}")
+    assert e == ["Food", "Milk"] and page.errors == []

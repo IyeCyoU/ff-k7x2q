@@ -226,7 +226,7 @@ function stmtEntries(t, n) {
   }
   const sign = t.amt >= 0 ? 1 : -1, N = rv.parts.length;
   return rv.parts.map((p, k) => {
-    const e = classifyBank(Object.assign({}, base, {id: N > 1 ? t.id + '~' + (k + 1) : t.id, dep: p.who, purpose: p.purpose, reason: p.reason, cat: p.cat, med: p.med,
+    const e = classifyBank(Object.assign({}, base, {id: N > 1 ? t.id + '~' + (k + 1) : t.id, dep: p.who, purpose: p.purpose, reason: p.reason, cat: p.cat, sub: p.sub, med: p.med,
       type: p.purpose === 'Internal Transfer' ? 'Internal Transfer' : sign > 0 ? 'Deposit' : 'Withdrawal', amt: N > 1 ? r2(sign * p.amt) : t.amt}));
     return Object.assign(e, {stmt: true, reviewed: true, ref: t.ref, bal: t.bal, manual: !!t.manual, note: rv.note || e.note}, N > 1 ? {parentId: t.id, splitIdx: k + 1, splitN: N, splitKind: 'review'} : {});
   });
@@ -290,7 +290,8 @@ function rvPartRow(t, p) {
   return '<div class="rv-part"><select class="rp-who" aria-label="Who"><option value="">Who…</option>' + O(whoOptions(), p.who) + '</select>' +
     '<select class="rp-purpose" aria-label="What for">' + REVIEW_PURPOSES[dir].map(([v, l]) => '<option value="' + esc(v) + '"' + (v === p.purpose ? ' selected' : '') + '>' + esc(l) + '</option>').join('') + '</select>' +
     '<select class="rp-reason" aria-label="Reason"' + (p.purpose === 'Outside Fund' ? '' : ' hidden') + '>' + O(OUTSIDE_REASONS, p.reason || OUTSIDE_REASONS[3]) + '</select>' +
-    '<select class="rp-cat" aria-label="Category"' + (isExp ? '' : ' hidden') + '><option value="">Category: automatic</option>' + O(Object.keys(S.cfg.categories), p.cat) + '</select>' +
+    '<select class="rp-cat" data-catpair="" aria-label="Category"' + (isExp ? '' : ' hidden') + '><option value="">Category: automatic</option>' + O(Object.keys(S.cfg.categories), p.cat) + '</select>' +
+    '<select class="rp-sub subsel" aria-label="Subcategory"' + (isExp ? '' : ' hidden') + (subsOf(p.cat).length ? '' : ' disabled') + '>' + subOptions(p.cat, p.sub) + '</select>' +
     '<input class="rp-amt" type="text" inputmode="decimal" autocomplete="off" data-num aria-label="Amount" value="' + (p.amt == null ? '' : p.amt) + '" placeholder="Amount">' +
     '<button class="btn sm" data-act="rpRemove" aria-label="Remove this part">×</button></div>';
 }
@@ -317,6 +318,7 @@ function rpRemaining() {
     const t = S.stmt.find(x => x.id === box.dataset.id), p = $('.rp-purpose', r).value;
     $('.rp-reason', r).hidden = p !== 'Outside Fund';
     $('.rp-cat', r).hidden = !(t && t.amt < 0 && ['Family Expenses', 'Medical Expense', 'Additional Expense'].includes(p));
+    $('.rp-sub', r).hidden = $('.rp-cat', r).hidden;
   }
 }
 /* ---- transactions entered by hand ---- */
@@ -378,7 +380,7 @@ const STMT_ACTIONS = {
   rvSave: el => {
     const box = $('#rv-parts'), id = box.dataset.id, total = +box.dataset.total, msg = $('#rv-msg');
     const parts = $$('.rv-part', box).map(r => ({who: $('.rp-who', r).value, purpose: $('.rp-purpose', r).value, reason: $('.rp-reason', r).hidden ? '' : $('.rp-reason', r).value,
-      cat: $('.rp-cat', r).hidden ? '' : $('.rp-cat', r).value, amt: parseAmount($('.rp-amt', r).value)}));
+      cat: $('.rp-cat', r).hidden ? '' : $('.rp-cat', r).value, sub: $('.rp-cat', r).hidden || !subsOf($('.rp-cat', r).value).includes($('.rp-sub', r).value) ? '' : $('.rp-sub', r).value, amt: parseAmount($('.rp-amt', r).value)}));
     if (parts.some(p => !p.who)) { msg.textContent = 'Choose who each part belongs to.'; return; }
     if (parts.some(p => !(p.amt > 0))) { msg.textContent = 'Every part needs an amount above zero.'; return; }
     const got = r2(parts.reduce((a, p) => a + p.amt, 0));
