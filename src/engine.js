@@ -29,14 +29,20 @@ const ruleCat = desc => (ruleFor(desc) || {}).cat || null;
 /* The built-in names (Medical, Bank Charges) may have been renamed in Setup, e.g. "Medical & Healthcare":
    use the family's own category when one clearly matches. */
 function catNamed(re, fallback) { return Object.keys(S.cfg.categories).find(c => re.test(c)) || fallback; }
-/* one <select> for category and subcategory: "Cat" or "Cat › Sub"; the value is cat, or cat|||sub */
-const CATSEP = '|||';
-function catOptions(curCat, curSub) {
-  const cur = curCat ? curCat + (curSub ? CATSEP + curSub : '') : '';
-  return Object.entries(S.cfg.categories).map(([c, subs]) => '<option value="' + esc(c) + '"' + (cur === c ? ' selected' : '') + '>' + esc(c) + '</option>' +
-    (subs || []).map(s => '<option value="' + esc(c + CATSEP + s) + '"' + (cur === c + CATSEP + s ? ' selected' : '') + '>' + esc(c + ' › ' + s) + '</option>').join('')).join('');
+/* Category and subcategory are two boxes. The subcategory box only ever lists the subcategories of the
+   category chosen beside it, and is switched off when that category has none. */
+const subsOf = cat => (S.cfg.categories[cat] || []);
+function subOptions(cat, cur, none) {
+  return '<option value="">' + esc(none || 'Subcategory: none') + '</option>' + subsOf(cat).map(s => '<option' + (s === cur ? ' selected' : '') + '>' + esc(s) + '</option>').join('');
 }
-const splitCat = v => { const i = (v || '').indexOf(CATSEP); return i < 0 ? {cat: v || '', sub: ''} : {cat: v.slice(0, i), sub: v.slice(i + CATSEP.length)}; };
+const catOnlyOptions = cur => Object.keys(S.cfg.categories).map(c => '<option' + (c === cur ? ' selected' : '') + '>' + esc(c) + '</option>').join('');
+/* a category box carries data-catpair: empty = the .subsel box in the same .catpair / .rv-part, or a selector */
+function syncSubBox(catEl) {
+  const sel = catEl.dataset.catpair, box = sel ? document.querySelector(sel) : (catEl.closest('.catpair, .rv-part') || document).querySelector('.subsel');
+  if (!box) return;
+  box.innerHTML = subOptions(catEl.value, '', box.dataset.none);
+  box.disabled = !subsOf(catEl.value).length;
+}
 const catLabel = e => e.cat ? e.cat + (e.sub ? ' › ' + e.sub : '') : '';
 function fundOf(kind, treat) {
   switch (kind) {
@@ -65,7 +71,7 @@ function classifyBank(t) {
   let cat = '', sub = '';
   if (kind === 'hhx' || kind === 'chg' || kind === 'med' || kind === 'spx') {
     const rule = atm ? null : ruleFor(t.desc);
-    if (ov.cat || t.cat) { cat = ov.cat || t.cat; sub = ov.cat ? (ov.sub || '') : ''; }
+    if (ov.cat || t.cat) { cat = ov.cat || t.cat; sub = ov.cat ? (ov.sub || '') : (t.sub || ''); }
     else if (kind === 'chg') cat = catNamed(/bank/i, 'Bank Charges');
     else if (rule) { cat = rule.cat; sub = rule.sub || ''; }
     else cat = kind === 'med' ? catNamed(/medical/i, 'Medical') : atm ? 'Cash withdrawn (ATM)' : 'Uncategorised';

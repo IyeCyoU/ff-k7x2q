@@ -315,7 +315,7 @@ table.t{width:100%;border-collapse:separate;border-spacing:0;font-size:13.5px}
 .rv-pick select,.rv-part select,.rv-part input{background:var(--surface);color:var(--ink);border:1px solid var(--line);border-radius:8px;padding:7px 8px;font:inherit;font-size:13.5px;min-width:0;max-width:100%}
 .rv-pick select[hidden],.rv-part [hidden]{display:none}
 .rv-btns{display:flex;gap:6px}
-.rv-part{display:grid;grid-template-columns:1fr 1.3fr 1fr 1fr 110px auto;gap:6px;margin-bottom:6px;align-items:center}
+.rv-part{display:grid;grid-template-columns:1fr 1.3fr 1fr 1fr 1fr 110px auto;gap:6px;margin-bottom:6px;align-items:center}
 .rv-part .rp-amt{text-align:right}
 .modal.wide{width:min(920px,100%)}
 @media (max-width:760px){
@@ -337,6 +337,10 @@ table.t{width:100%;border-collapse:separate;border-spacing:0;font-size:13.5px}
 .datebox .dpick{flex:none;width:44px;padding:0 6px;color:transparent;cursor:pointer}
 .datebox .dpick::-webkit-datetime-edit{display:none}
 .datebox .dpick::-webkit-calendar-picker-indicator{margin:0 auto;cursor:pointer}
+.catpair{display:flex;flex-wrap:wrap;gap:6px;align-items:center}
+.catpair select{min-width:0;max-width:100%}
+select.subsel:disabled{opacity:.5}
+td select.qedit.subsel{display:block;margin-top:4px}
 /* ============ printing ============ */
 .print-head{display:none}
 @media print{

@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.6.2
+- Category and subcategory are two separate boxes everywhere a bank transaction is categorised: the transaction window, the quick boxes in the Transactions table, the review window for statement and hand entries, Categorise payees and Setup → Payee rules. The subcategory box lists only the subcategories of the category chosen beside it, is switched off when that category has none, and is cleared when the category changes. (1.6.0 offered one long list of every `Category › Subcategory` pair.)
+- Categorise payees: choose the category, optionally its subcategory, then Save.
+- Review window: a subcategory can now be set on a statement or hand entry.
+
 ## 1.6.1
 - The "A new version is ready" message is removed. It could come back on every visit: the app page was already the new version (it is always loaded from the website first), but the offline copy only switched after a question and a reload, and on phones where that switch did not complete the question was asked again each time. Now the offline copy switches to a new release by itself, with no question and no reload.
 - An app left open across a release refreshes itself once, the next time you return to it and nothing is being typed or edited. At most one refresh per release.

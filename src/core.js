@@ -7,6 +7,7 @@ const FUNDS = ['H', 'I', 'S', 'M', 'O', 'X'];   // household, investment, specia
 const OUTSIDE_REASONS = ['Payable to a third party', 'Donation / charity', 'Other debt', 'Not part of the family fund'];   // which version's "what's new" this browser has shown
 const APP_VERSION = '__APP_VERSION__';   // filled in by build.py from VERSION
 const WHATS_NEW = {   // shown once after an update; newest first
+  '1.6.2': ['Category and Subcategory are now two boxes. The Subcategory box lists only the subcategories of the category you chose.'],
   '1.6.1': ['The "A new version is ready" message is gone. Updates now happen by themselves: opening the app always shows the newest version.'],
   '1.6.0': ['Subcategories on bank transactions and payee rules (Category › Subcategory).', 'A payment a brother makes from his own pocket can count as his investment contribution.', 'Overview, Household and Investments say how much the spending funds owe the investment fund, and what puts it back.', 'Importing a bank statement over your Excel history no longer adds a deposit again when the Excel sheet had split it into several lines.'],
   '1.5.1': ['Adding several transactions by hand is easier: Approve and add another, and an Add transaction button on Overview and Transactions.', 'A transaction you added by hand can be edited afterwards: open it and choose Edit date, amount or description.', 'Dates are a plain box now: type or paste 5/4/2026, 05-04-26 or 5 Apr 2026. The small calendar is still beside it.'],

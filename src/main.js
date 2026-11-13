@@ -305,7 +305,7 @@ const ACT = {
       if (err.length) { const m = $('#tx-msg'); m.style.display = ''; m.innerHTML = err.map(esc).join('<br>'); return; }
       o.split = parts;
     }
-    if (g('#tx-cat')) { const cs = splitCat(g('#tx-cat')); o.cat = cs.cat; if (cs.sub) o.sub = cs.sub; } if (g('#tx-mode')) o.mode = g('#tx-mode'); if (g('#tx-med')) o.med = g('#tx-med');
+    if (g('#tx-cat')) { o.cat = g('#tx-cat'); const sb = g('#tx-sub'); if (sb && subsOf(o.cat).includes(sb)) o.sub = sb; } if (g('#tx-mode')) o.mode = g('#tx-mode'); if (g('#tx-med')) o.med = g('#tx-med');
     if ($('#tx-inv') && g('#tx-inv') !== 'Deployed') o.inv = g('#tx-inv'); if (g('#tx-note').trim()) o.note = g('#tx-note').trim();
     if (Object.keys(o).length) S.overlay[id] = o; else delete S.overlay[id];
     closeModal(); persist(); refresh(); toast('Saved');
@@ -360,7 +360,12 @@ const ACT = {
     for (const k of add) S.cfg.categories[k] = DEFAULT_CATS[k].slice();
     persist(); refresh(); toast(add.length + ' default categor' + (add.length === 1 ? 'y' : 'ies') + ' added back');
   },
-  addRule: () => { const k = $('#rl-k').value.trim(); if (!k) { toast('Enter the text to match.'); return; } const cs = splitCat($('#rl-c').value); S.cfg.rules.push(Object.assign({kw: k, cat: cs.cat}, cs.sub ? {sub: cs.sub} : {})); persist(); refresh(); },
+  addRule: () => { const k = $('#rl-k').value.trim(); if (!k) { toast('Enter the text to match.'); return; } const cat = $('#rl-c').value, sb = $('#rl-s').value; S.cfg.rules.push(Object.assign({kw: k, cat}, sb && subsOf(cat).includes(sb) ? {sub: sb} : {})); persist(); refresh(); },
+  payeeRule: el => {
+    const w = el.closest('.catpair'), cat = $('[data-catpair]', w).value, sb = $('.subsel', w).value;
+    if (!cat) { toast('Choose a category first.'); return; }
+    S.cfg.rules.unshift(Object.assign({kw: el.dataset.arg.toLowerCase(), cat}, sb && subsOf(cat).includes(sb) ? {sub: sb} : {})); persist(); refresh(); toast('Rule added for ' + el.dataset.arg);
+  },
   delRule: el => { S.cfg.rules.splice(+el.dataset.arg, 1); persist(); refresh(); },
   backup: () => backupDialog(),
   pickBackup: () => $('#file').click(),
@@ -416,8 +421,15 @@ function normaliseDate(ev) {
 document.addEventListener('keydown', ev => { if (ev.key === 'Enter') normaliseNum(ev); }, true);
 document.addEventListener('change', ev => {
   const t = ev.target;
+  if (t.dataset && t.dataset.catpair !== undefined) syncSubBox(t);   // the subcategory box follows the category box
   if (stmtChange(t)) return;
   if (t.id === 'file') { const f = t.files[0]; t.value = ''; handleFile(f); return; }
+  if (t.dataset.qsub !== undefined) {   // quick subcategory: kept with the category it belongs to
+    const id = t.dataset.qsub, e = R.byId[id], ov = Object.assign({}, S.overlay[id]);
+    if (!e) return;
+    ov.cat = ov.cat || e.cat; if (t.value && subsOf(ov.cat).includes(t.value)) ov.sub = t.value; else delete ov.sub;
+    S.overlay[id] = ov; persist(); refresh(); return;
+  }
   if (t.dataset.qcat !== undefined || t.dataset.qmode !== undefined) {
     const id = t.dataset.qcat !== undefined ? t.dataset.qcat : t.dataset.qmode, key = t.dataset.qcat !== undefined ? 'cat' : 'mode';
     const ov = Object.assign({}, S.overlay[id]);
@@ -432,7 +444,6 @@ document.addEventListener('change', ev => {
     if (EXTRA_KEYS.includes(k)) { const btn = $('.more-wrap [data-act="moreFilters"]'); if (btn) { const n = activeExtraCount(); btn.innerHTML = 'Filters' + (n ? ' <span class="chipcount">' + n + '</span>' : ''); btn.classList.toggle('on', n > 0); } }
     UI.txpage = 0; renderView(); return;
   }
-  if (t.dataset.ruleP !== undefined || t.dataset.rulePayee !== undefined) { if (!t.value) return; const cs = splitCat(t.value); S.cfg.rules.unshift(Object.assign({kw: t.dataset.rulePayee.toLowerCase(), cat: cs.cat}, cs.sub ? {sub: cs.sub} : {})); persist(); refresh(); toast('Rule added for ' + t.dataset.rulePayee); return; }
   if (t.dataset.member !== undefined) {
     const i = +t.dataset.member, old = S.cfg.brothers[i], v = t.value.trim();
     if (v && v !== old && S.cfg.brothers.includes(v)) { toast(v + ' is already in the list.'); renderView(); return; }

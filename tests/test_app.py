@@ -168,7 +168,8 @@ def test_rules_and_overrides_carry_a_subcategory(loaded):
         return {id:e.id,cat:a.cat,sub:a.sub,label:catLabel(a)}}""")
     assert r["cat"] == "Food" and r["sub"] == "Bakery" and r["label"] == "Food › Bakery"
     loaded.evaluate("id=>{goto('transactions'); openModal(txModal(id));}", r["id"])
-    loaded.select_option("#tx-cat", "Food|||Milk")
+    loaded.select_option("#tx-cat", "Food")
+    loaded.select_option("#tx-sub", "Milk")
     loaded.click("#modalRoot [data-act=saveTx]")
     a = js(loaded, "id=>({cat:R.byId[id].cat,sub:R.byId[id].sub,ov:S.overlay[id]})", r["id"])
     assert a["cat"] == "Food" and a["sub"] == "Milk" and a["ov"]["sub"] == "Milk"
@@ -213,3 +214,53 @@ def test_returned_investment_money_raises_what_he_still_owes(loaded):
     assert r["amt"] > 0 and abs((r["pos0"] - r["pos1"]) - r["amt"]) < 0.01      # his position is worse by exactly what he took back
     assert abs(r["paid"] - r["net"]) < 0.01                                      # paid in the tracker = net invested
     assert r["diff"] == []
+
+
+def _opts(page, sel):
+    return page.evaluate("s=>[...document.querySelector(s).options].map(o=>o.value).filter(Boolean)", sel)
+
+
+def test_subcategory_box_lists_only_the_chosen_categorys(loaded):
+    """Two boxes: the subcategory box shows the subcategories of the category beside it and nothing else."""
+    id_ = js(loaded, """()=>{S.cfg.categories={'Food':['Bakery','Milk'],'Travel':['Fuel','Service'],'Plain':[]}; S.cfg.rules=[]; refresh();
+        return R.led.find(x=>x.kind==='hhx'&&x.src==='Bank'&&!x.atm&&!x.splitIdx).id}""")
+    loaded.evaluate("id=>{goto('transactions'); openModal(txModal(id));}", id_)
+    assert _opts(loaded, "#tx-sub") == [] and loaded.is_disabled("#tx-sub")            # no category yet: nothing to pick
+    loaded.select_option("#tx-cat", "Food")
+    assert _opts(loaded, "#tx-sub") == ["Bakery", "Milk"] and not loaded.is_disabled("#tx-sub")
+    loaded.select_option("#tx-sub", "Milk")
+    loaded.select_option("#tx-cat", "Travel")                                           # change of category: the old subcategory cannot linger
+    assert _opts(loaded, "#tx-sub") == ["Fuel", "Service"] and loaded.input_value("#tx-sub") == ""
+    loaded.select_option("#tx-cat", "Plain")
+    assert _opts(loaded, "#tx-sub") == [] and loaded.is_disabled("#tx-sub")
+    loaded.select_option("#tx-cat", "Travel"); loaded.select_option("#tx-sub", "Fuel")
+    loaded.click("#modalRoot [data-act=saveTx]")
+    assert js(loaded, "id=>[R.byId[id].cat,R.byId[id].sub]", id_) == ["Travel", "Fuel"]
+    # the quick boxes in the Transactions table follow the same rule
+    loaded.evaluate("id=>{UI.txIds=[id]; UI.txpage=0; goto('transactions');}", id_)      # show just this row
+    assert js(loaded, "id=>[...document.querySelector('[data-qsub=\"'+id+'\"]').options].map(o=>o.value).filter(Boolean)", id_) == ["Fuel", "Service"]
+    loaded.evaluate("id=>{const s=document.querySelector('[data-qsub=\"'+id+'\"]');s.value='Service';s.dispatchEvent(new Event('change',{bubbles:true}))}", id_)
+    assert js(loaded, "id=>[R.byId[id].cat,R.byId[id].sub]", id_) == ["Travel", "Service"]
+    loaded.evaluate("id=>{const s=document.querySelector('[data-qcat=\"'+id+'\"]');s.value='Food';s.dispatchEvent(new Event('change',{bubbles:true}))}", id_)
+    assert js(loaded, "id=>[R.byId[id].cat,R.byId[id].sub]", id_) == ["Food", ""]      # new category: subcategory cleared, not carried over
+
+
+def test_payee_rule_with_category_then_its_subcategory(loaded):
+    js(loaded, "()=>{S.cfg.categories={'Food':['Bakery','Milk'],'Travel':['Fuel'],'Plain':[]}; S.cfg.rules=[]; S.overlay={}; refresh(); goto('household');}")
+    row = loaded.locator(".catpair").first
+    payee = row.locator("[data-act=payeeRule]").get_attribute("data-arg")
+    assert row.locator(".subsel").is_disabled()
+    row.locator("[data-act=payeeRule]").click()                       # nothing chosen: nothing saved
+    assert js(loaded, "()=>S.cfg.rules.length") == 0
+    row = loaded.locator(".catpair").first
+    row.locator("[data-catpair]").select_option("Food")
+    assert row.locator(".subsel").evaluate("s=>[...s.options].map(o=>o.value).filter(Boolean)") == ["Bakery", "Milk"]
+    row.locator(".subsel").select_option("Bakery")
+    row.locator("[data-act=payeeRule]").click()
+    assert js(loaded, "()=>S.cfg.rules[0]") == {"kw": payee.lower(), "cat": "Food", "sub": "Bakery"}
+    # Setup: same two boxes
+    loaded.evaluate("goto('setup')")
+    loaded.select_option("#rl-c", "Travel")
+    assert _opts(loaded, "#rl-s") == ["Fuel"]
+    loaded.select_option("#rl-c", "Plain")
+    assert _opts(loaded, "#rl-s") == [] and loaded.is_disabled("#rl-s")
